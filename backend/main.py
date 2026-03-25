@@ -15,32 +15,75 @@ from groq import Groq
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
-app = FastAPI(title="DevOps AI RAG Chatbot")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(title="Debugr AI — RAG DevOps Assistant")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 chroma_client = chromadb.Client()
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 sessions: Dict[str, Dict[str, Any]] = {}
 
+# ── Persona system prompts ───────────────────────────────────────────────────
+PERSONA_PROMPTS: Dict[str, str] = {
+    "sre": """You are an expert SRE AI assistant analyzing logs, CSVs, and technical documents.
 
-class QueryRequest(BaseModel):
-    session_id: str
-    query: str
+Structure every response with this exact 4-phase format:
+
+## 🔍 Phase 1: Evidence Gathered
+Specific findings with exact references (line numbers, values, timestamps).
+
+## 💡 Phase 2: Hypotheses
+Top 2-3 ranked hypotheses about what is wrong.
+
+## ✅ Phase 3: Root Cause
+Confirmed root cause based on evidence. Be definitive.
+
+## 🛠️ Phase 4: Recommendations
+Concrete ordered steps with commands where applicable.
+
+Be precise, technical, cite evidence from the document.""",
+
+    "security": """You are an expert Security Engineer AI assistant.
+
+Structure every response with this exact 4-phase format:
+
+## 🔍 Phase 1: Evidence Gathered
+Security findings: auth events, access anomalies, suspicious patterns, exposed data.
+
+## 💡 Phase 2: Threat Hypotheses
+Top threats ranked: CRITICAL / HIGH / MEDIUM / LOW.
+
+## ✅ Phase 3: Confirmed Issues
+Confirmed vulnerabilities, misconfigs, or breaches. CVE references if applicable.
+
+## 🛠️ Phase 4: Mitigations
+Prioritized steps with urgency: Immediate / 24h / 1 week.
+
+Focus on: unauthorized access, privilege escalation, data exfiltration, injection, exposed secrets.""",
+
+    "data": """You are an expert Data Analyst AI assistant.
+
+Structure every response with this exact 4-phase format:
+
+## 🔍 Phase 1: Data Profile
+Shape, columns, data types, value ranges, missing values, duplicates.
+
+## 💡 Phase 2: Anomaly Hypotheses
+Hypotheses about data quality issues, outliers, or unusual distributions.
+
+## ✅ Phase 3: Confirmed Issues
+Confirmed data problems with specific column/row references and values.
+
+## 🛠️ Phase 4: Recommendations
+Cleaning steps, validation rules, transformation approaches, further analysis.
+
+Focus on: outliers, missing values, type mismatches, duplicate rows, statistical anomalies.""",
+}
 
 
+# ── Parsers ──────────────────────────────────────────────────────────────────
 def parse_pdf(content: bytes) -> str:
     with pdfplumber.open(io.BytesIO(content)) as pdf:
-        page_text = []
-        for page in pdf.pages:
-            page_text.append(page.extract_text() or "")
-    return "\n".join(page_text)
+        return "\n".join(page.extract_text() or "" for page in pdf.pages)
 
 
 def parse_csv(content: bytes) -> pd.DataFrame:
@@ -48,14 +91,11 @@ def parse_csv(content: bytes) -> pd.DataFrame:
 
 
 def csv_to_structured_text(df: pd.DataFrame) -> str:
-    rows = []
-    rows.append(f"CSV rows: {len(df)}")
-    rows.append(f"CSV columns: {len(df.columns)}")
-    rows.append(f"Column names: {', '.join(df.columns.astype(str).tolist())}")
-    rows.append("")
-    rows.append("Row data:")
-    rows.append(df.to_string(index=False))
-    return "\n".join(rows)
+    return "\n".join([
+        f"CSV rows: {len(df)}", f"CSV columns: {len(df.columns)}",
+        f"Column names: {', '.join(df.columns.astype(str).tolist())}",
+        "", "Row data:", df.to_string(index=False),
+    ])
 
 
 def parse_text(content: bytes) -> str:
@@ -63,251 +103,193 @@ def parse_text(content: bytes) -> str:
 
 
 def chunk_text_by_lines(text: str, chunk_words: int = 500, overlap_words: int = 50) -> List[str]:
-    lines = [line for line in text.splitlines() if line.strip()]
+    lines = [l for l in text.splitlines() if l.strip()]
     if not lines:
         return []
-
     chunks: List[str] = []
-    current_lines: List[str] = []
-    current_word_count = 0
-
+    cur: List[str] = []
+    cw = 0
     for line in lines:
-        line_word_count = len(line.split())
-
-        if current_lines and current_word_count + line_word_count > chunk_words:
-            chunks.append("\n".join(current_lines))
-
-            overlap_lines: List[str] = []
-            overlap_count = 0
-            for existing_line in reversed(current_lines):
-                overlap_lines.insert(0, existing_line)
-                overlap_count += len(existing_line.split())
-                if overlap_count >= overlap_words:
+        lw = len(line.split())
+        if cur and cw + lw > chunk_words:
+            chunks.append("\n".join(cur))
+            ov: List[str] = []
+            oc = 0
+            for el in reversed(cur):
+                ov.insert(0, el)
+                oc += len(el.split())
+                if oc >= overlap_words:
                     break
-
-            current_lines = overlap_lines.copy()
-            current_word_count = sum(len(item.split()) for item in current_lines)
-
-        current_lines.append(line)
-        current_word_count += line_word_count
-
-    if current_lines:
-        chunks.append("\n".join(current_lines))
-
+            cur = ov
+            cw = sum(len(x.split()) for x in cur)
+        cur.append(line)
+        cw += lw
+    if cur:
+        chunks.append("\n".join(cur))
     return chunks
 
 
 def count_pattern_lines(text: str, pattern: str) -> int:
-    regex = re.compile(pattern, flags=re.IGNORECASE)
-    return sum(1 for line in text.splitlines() if regex.search(line))
+    rx = re.compile(pattern, re.IGNORECASE)
+    return sum(1 for l in text.splitlines() if rx.search(l))
 
 
 def build_text_insights(text: str) -> Dict[str, Any]:
-    critical_count = count_pattern_lines(text, r"\b(critical|fatal|panic|segfault|segmentation fault|kernel panic|oom|out of memory)\b")
-    error_count = count_pattern_lines(text, r"\b(error|exception|traceback|failed|failure|denied|refused|crash)\b")
-    warning_count = count_pattern_lines(text, r"\b(warn|warning|deprecated|retry|timeout|throttl)\b")
-    memory_count = count_pattern_lines(text, r"\b(oom|out of memory|memory leak|memory pressure|heap)\b")
-    cpu_count = count_pattern_lines(text, r"\b(cpu|high load|load average|throttl)\b")
-
-    summary = (
-        f"I found {critical_count} critical indicators, {error_count} error indicators, "
-        f"{warning_count} warning indicators, {memory_count} memory signals, and {cpu_count} CPU/load signals."
-    )
+    critical = count_pattern_lines(text, r"\b(critical|fatal|panic|segfault|oom|out of memory|kernel panic)\b")
+    errors   = count_pattern_lines(text, r"\b(error|exception|traceback|failed|failure|denied|refused|crash)\b")
+    warnings = count_pattern_lines(text, r"\b(warn|warning|deprecated|retry|timeout|throttl)\b")
+    memory   = count_pattern_lines(text, r"\b(oom|out of memory|memory leak|memory pressure|heap)\b")
+    cpu      = count_pattern_lines(text, r"\b(cpu|high load|load average|throttl)\b")
     findings = []
-    if critical_count:
-        findings.append(f"{critical_count} critical/fatal patterns detected.")
-    if error_count:
-        findings.append(f"{error_count} error/exception patterns detected.")
-    if warning_count:
-        findings.append(f"{warning_count} warning/timeout patterns detected.")
-    if memory_count:
-        findings.append(f"{memory_count} memory-related indicators detected.")
-    if cpu_count:
-        findings.append(f"{cpu_count} CPU/load indicators detected.")
-    if not findings:
-        findings.append("No obvious critical patterns were detected via quick heuristic scan.")
-
+    if critical: findings.append(f"{critical} critical/fatal patterns detected.")
+    if errors:   findings.append(f"{errors} error/exception patterns detected.")
+    if warnings: findings.append(f"{warnings} warning/timeout patterns detected.")
+    if memory:   findings.append(f"{memory} memory-related indicators detected.")
+    if cpu:      findings.append(f"{cpu} CPU/load indicators detected.")
+    if not findings: findings.append("No critical patterns detected in quick scan.")
     return {
-        "summary": summary,
+        "summary": f"{critical} critical, {errors} errors, {warnings} warnings, {memory} memory, {cpu} CPU signals.",
         "findings": findings,
-        "metrics": {
-            "critical": critical_count,
-            "errors": error_count,
-            "warnings": warning_count,
-            "memory_signals": memory_count,
-            "cpu_signals": cpu_count,
-        },
+        "metrics": {"critical": critical, "errors": errors, "warnings": warnings, "memory_signals": memory, "cpu_signals": cpu},
     }
 
 
 def build_csv_insights(df: pd.DataFrame) -> Dict[str, Any]:
-    missing_values = int(df.isna().sum().sum())
-    numeric = df.select_dtypes(include=["number"])
-    outlier_count = 0
-
-    for column in numeric.columns:
-        series = numeric[column].dropna()
-        if len(series) < 4:
-            continue
-        std = series.std()
-        if std is None or std == 0:
-            continue
-        z_scores = ((series - series.mean()) / std).abs()
-        outlier_count += int((z_scores > 3).sum())
-
-    summary = (
-        f"I found {missing_values} missing values, {outlier_count} potential numeric outliers, "
-        f"across {len(df.columns)} columns and {len(df)} rows."
-    )
-    findings = [
-        f"Rows: {len(df)} | Columns: {len(df.columns)}",
-        f"Missing values: {missing_values}",
-        f"Potential outliers (z-score > 3): {outlier_count}",
-    ]
-
+    missing = int(df.isna().sum().sum())
+    outliers = 0
+    for col in df.select_dtypes(include=["number"]).columns:
+        s = df[col].dropna()
+        if len(s) >= 4:
+            std = s.std()
+            if std and std > 0:
+                outliers += int((((s - s.mean()) / std).abs() > 3).sum())
     return {
-        "summary": summary,
-        "findings": findings,
-        "metrics": {
-            "rows": int(len(df)),
-            "columns": int(len(df.columns)),
-            "missing_values": missing_values,
-            "potential_outliers": outlier_count,
-        },
+        "summary": f"{missing} missing values, {outliers} outliers across {len(df.columns)} cols / {len(df)} rows.",
+        "findings": [f"Rows: {len(df)} | Columns: {len(df.columns)}", f"Missing: {missing}", f"Outliers (z>3): {outliers}"],
+        "metrics": {"rows": len(df), "columns": len(df.columns), "missing_values": missing, "potential_outliers": outliers},
     }
 
 
-def detect_auto_insights(file_type: str, text: str, dataframe: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
-    if file_type == "CSV" and dataframe is not None:
-        return build_csv_insights(dataframe)
+def detect_auto_insights(file_type: str, text: str, df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
+    if file_type == "CSV" and df is not None:
+        return build_csv_insights(df)
     return build_text_insights(text)
 
 
+# ── Routes ────────────────────────────────────────────────────────────────────
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is missing.")
-
+        raise HTTPException(400, "Filename missing.")
     filename = file.filename
-    extension = filename.lower().rsplit(".", maxsplit=1)[-1] if "." in filename else ""
+    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     content = await file.read()
+    df: Optional[pd.DataFrame] = None
 
-    csv_dataframe: Optional[pd.DataFrame] = None
-
-    if extension == "pdf":
-        extracted_text = parse_pdf(content)
-        file_type = "PDF"
-    elif extension == "csv":
-        csv_dataframe = parse_csv(content)
-        extracted_text = csv_to_structured_text(csv_dataframe)
-        file_type = "CSV"
-    elif extension in {"log", "txt"}:
-        extracted_text = parse_text(content)
-        file_type = "LOG"
+    if ext == "pdf":
+        text, file_type = parse_pdf(content), "PDF"
+    elif ext == "csv":
+        df = parse_csv(content)
+        text, file_type = csv_to_structured_text(df), "CSV"
+    elif ext in {"log", "txt", "env"}:
+        text, file_type = parse_text(content), "LOG"
     else:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF, CSV, LOG, or TXT.")
+        raise HTTPException(400, "Unsupported file type. Use PDF, CSV, LOG, TXT, or ENV.")
 
-    if not extracted_text.strip():
-        raise HTTPException(status_code=400, detail="No text content could be extracted from the file.")
-
-    chunks = chunk_text_by_lines(extracted_text, chunk_words=500, overlap_words=50)
+    if not text.strip():
+        raise HTTPException(400, "No text content could be extracted.")
+    chunks = chunk_text_by_lines(text)
     if not chunks:
-        raise HTTPException(status_code=400, detail="Unable to create chunks from uploaded file.")
+        raise HTTPException(400, "Unable to create chunks from file.")
 
     session_id = str(uuid.uuid4())
     collection = chroma_client.create_collection(name=session_id)
-
     embeddings = embedder.encode(chunks, convert_to_numpy=True).tolist()
     collection.add(
-        documents=chunks,
-        embeddings=embeddings,
-        ids=[f"{session_id}-chunk-{idx}" for idx in range(len(chunks))],
-        metadatas=[{"filename": filename, "file_type": file_type} for _ in chunks],
+        documents=chunks, embeddings=embeddings,
+        ids=[f"{session_id}-{i}" for i in range(len(chunks))],
+        metadatas=[{"filename": filename, "file_type": file_type}] * len(chunks),
     )
-
-    auto_insights = detect_auto_insights(file_type=file_type, text=extracted_text, dataframe=csv_dataframe)
+    insights = detect_auto_insights(file_type, text, df)
     sessions[session_id] = {
-        "collection": collection,
-        "history": [],
-        "filename": filename,
-        "file_type": file_type,
-        "auto_insights": auto_insights,
+        "collection": collection, "history": [],
+        "filename": filename, "file_type": file_type, "auto_insights": insights,
     }
+    return {"session_id": session_id, "filename": filename, "chunks": len(chunks), "file_type": file_type, "auto_insights": insights}
 
-    return {
-        "session_id": session_id,
-        "filename": filename,
-        "chunks": len(chunks),
-        "file_type": file_type,
-        "auto_insights": auto_insights,
-    }
+
+class QueryRequest(BaseModel):
+    session_id: str
+    query: str
+    persona: str = "sre"
 
 
 @app.post("/query")
 async def query_document(request: QueryRequest):
-    session_state = sessions.get(request.session_id)
-    if session_state is None:
-        raise HTTPException(status_code=404, detail="Session not found. Upload a file first.")
-    collection = session_state["collection"]
-    history = session_state["history"]
+    state = sessions.get(request.session_id)
+    if state is None:
+        raise HTTPException(404, "Session not found. Upload a file first.")
+    collection = state["collection"]
+    history = state["history"]
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise HTTPException(500, "GROQ_API_KEY not set.")
 
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if not groq_api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in the environment.")
+    q_emb = embedder.encode([request.query], convert_to_numpy=True).tolist()[0]
+    n = max(1, min(5, collection.count()))
+    results = collection.query(query_embeddings=[q_emb], n_results=n)
+    chunks = results.get("documents", [[]])[0] or ["No relevant context found."]
+    context = "\n\n---\n\n".join(chunks)
 
-    query_embedding = embedder.encode([request.query], convert_to_numpy=True).tolist()[0]
-    result_count = max(1, min(5, collection.count()))
-    results = collection.query(query_embeddings=[query_embedding], n_results=result_count)
+    persona = request.persona if request.persona in PERSONA_PROMPTS else "sre"
+    system_prompt = PERSONA_PROMPTS[persona]
+    user_prompt = f"Question: {request.query}\n\nDocument context:\n{context}\n\nProvide a focused analysis."
 
-    context_chunks = results.get("documents", [[]])[0] or []
-    if not context_chunks:
-        context_chunks = ["No relevant context found in the uploaded document."]
-    context = "\n\n---\n\n".join(context_chunks)
-
-    system_prompt = (
-        "You are an expert DevOps assistant. Analyze user-provided technical files and answer clearly. "
-        "Always structure your response with these sections:\n"
-        "1) Summary\n"
-        "2) Issues Detected\n"
-        "3) Root Cause\n"
-        "4) Recommendations\n"
-        "Be precise, actionable, and evidence-based using the provided context."
-    )
-    user_prompt = (
-        f"Question: {request.query}\n\n"
-        f"Retrieved context:\n{context}\n\n"
-        "Provide a focused DevOps analysis."
-    )
-
-    groq_client = Groq(api_key=groq_api_key)
+    groq_client = Groq(api_key=api_key)
 
     def event_stream():
-        messages = [{"role": "system", "content": system_prompt}]
+        msgs = [{"role": "system", "content": system_prompt}]
         if history:
-            messages.extend(history[-8:])
-        messages.append({"role": "user", "content": user_prompt})
+            msgs.extend(history[-8:])
+        msgs.append({"role": "user", "content": user_prompt})
 
-        assistant_output = ""
+        output = ""
         stream = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            temperature=0.1,
-            max_tokens=2048,
-            stream=True,
+            model="llama-3.3-70b-versatile", messages=msgs,
+            temperature=0.1, max_tokens=2048, stream=True,
         )
-
         for part in stream:
-            token = part.choices[0].delta.content if part.choices else None
-            if token:
-                assistant_output += token
-                payload = json.dumps({"content": token})
-                yield f"data: {payload}\n\n"
+            tok = part.choices[0].delta.content if part.choices else None
+            if tok:
+                output += tok
+                yield f"data: {json.dumps({'content': tok})}\n\n"
 
         history.append({"role": "user", "content": request.query})
-        history.append({"role": "assistant", "content": assistant_output.strip()})
+        history.append({"role": "assistant", "content": output.strip()})
         if len(history) > 20:
             del history[:-20]
 
+        # Generate follow-up suggestions
+        try:
+            fp = (
+                f"Based on this {state['file_type']} analysis:\n"
+                f"Q: {request.query}\nA: {output[:400]}...\n\n"
+                "Generate exactly 3 short follow-up questions. "
+                "Return ONLY a JSON array of 3 strings. No other text."
+            )
+            fr = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": fp}],
+                temperature=0.4, max_tokens=120, stream=False,
+            )
+            ft = fr.choices[0].message.content.strip()
+            m = re.search(r'\[.*?\]', ft, re.DOTALL)
+            followups = json.loads(m.group())[:3] if m else []
+        except Exception:
+            followups = []
+
+        if followups:
+            yield f"data: {json.dumps({'followups': followups})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -315,8 +297,8 @@ async def query_document(request: QueryRequest):
 
 @app.delete("/session/{session_id}")
 async def delete_session(session_id: str):
-    session_state = sessions.pop(session_id, None)
-    if session_state is not None:
+    state = sessions.pop(session_id, None)
+    if state:
         chroma_client.delete_collection(name=session_id)
     return {"status": "deleted"}
 
