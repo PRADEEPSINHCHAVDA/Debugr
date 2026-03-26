@@ -15,6 +15,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from groq import Groq
+from openai import OpenAI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
@@ -91,6 +92,67 @@ def load_sessions_db() -> Dict[str, Dict[str, Any]]:
 async def startup_event():
     init_db()
     sessions.update(load_sessions_db())
+
+
+# ── LLM Provider Presets ─────────────────────────────────────────────────────
+PROVIDER_PRESETS: Dict[str, Dict[str, Any]] = {
+    "groq": {
+        "label": "Groq",
+        "base_url": "https://api.groq.com/openai/v1",
+        "env_key": "GROQ_API_KEY",
+        "models": [
+            {"id": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B"},
+            {"id": "llama-3.1-8b-instant",    "label": "Llama 3.1 8B (fast)"},
+            {"id": "mixtral-8x7b-32768",       "label": "Mixtral 8x7B"},
+            {"id": "gemma2-9b-it",             "label": "Gemma 2 9B"},
+        ],
+        "default_model": "llama-3.3-70b-versatile",
+    },
+    "openai": {
+        "label": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "env_key": "OPENAI_API_KEY",
+        "models": [
+            {"id": "gpt-4o",       "label": "GPT-4o"},
+            {"id": "gpt-4o-mini",  "label": "GPT-4o Mini"},
+            {"id": "gpt-4-turbo",  "label": "GPT-4 Turbo"},
+        ],
+        "default_model": "gpt-4o-mini",
+    },
+    "together": {
+        "label": "Together AI",
+        "base_url": "https://api.together.xyz/v1",
+        "env_key": "TOGETHER_API_KEY",
+        "models": [
+            {"id": "meta-llama/Llama-3-70b-chat-hf",  "label": "Llama 3 70B"},
+            {"id": "mistralai/Mixtral-8x7B-Instruct-v0.1", "label": "Mixtral 8x7B"},
+        ],
+        "default_model": "meta-llama/Llama-3-70b-chat-hf",
+    },
+    "ollama": {
+        "label": "Ollama (local)",
+        "base_url": "http://localhost:11434/v1",
+        "env_key": None,
+        "models": [
+            {"id": "llama3",   "label": "Llama 3"},
+            {"id": "mistral",  "label": "Mistral"},
+            {"id": "phi3",     "label": "Phi-3"},
+        ],
+        "default_model": "llama3",
+    },
+}
+
+DEFAULT_PROVIDER = "groq"
+DEFAULT_MODEL    = "llama-3.3-70b-versatile"
+
+
+def get_openai_client(provider: str) -> OpenAI:
+    preset = PROVIDER_PRESETS.get(provider, PROVIDER_PRESETS[DEFAULT_PROVIDER])
+    env_key = preset["env_key"]
+    api_key = os.getenv(env_key) if env_key else "ollama"
+    if not api_key:
+        raise HTTPException(500, f"{env_key} not set. Configure it to use {preset['label']}.")
+    return OpenAI(api_key=api_key, base_url=preset["base_url"])
 
 
 # ── Persona system prompts ────────────────────────────────────────────────────
@@ -290,6 +352,22 @@ def detect_auto_insights(file_type: str, text: str, df: Optional[pd.DataFrame] =
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+@app.get("/providers")
+async def list_providers():
+    result = []
+    for pid, preset in PROVIDER_PRESETS.items():
+        env_key = preset["env_key"]
+        available = (env_key is None) or bool(os.getenv(env_key))
+        result.append({
+            "id": pid,
+            "label": preset["label"],
+            "available": available,
+            "models": preset["models"],
+            "default_model": preset["default_model"],
+        })
+    return result
+
+
 @app.get("/sessions")
 async def list_sessions():
     return [
@@ -358,6 +436,8 @@ class QueryRequest(BaseModel):
     session_id: str
     query: str
     persona: str = "sre"
+    provider: str = DEFAULT_PROVIDER
+    model: str = DEFAULT_MODEL
 
 
 @app.post("/query")
@@ -367,24 +447,31 @@ async def query_document(request: QueryRequest):
         raise HTTPException(404, "Session not found. Upload a file first.")
     collection = state["collection"]
     history = state["history"]
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise HTTPException(500, "GROQ_API_KEY not set.")
+
+    provider = request.provider if request.provider in PROVIDER_PRESETS else DEFAULT_PROVIDER
+    preset   = PROVIDER_PRESETS[provider]
+    valid_model_ids = [m["id"] for m in preset["models"]]
+    model = request.model if request.model in valid_model_ids else preset["default_model"]
+
+    llm = get_openai_client(provider)
 
     q_emb = embedder.encode([request.query], convert_to_numpy=True).tolist()[0]
     n = max(1, min(5, collection.count()))
     results = collection.query(query_embeddings=[q_emb], n_results=n)
-    chunks = results.get("documents", [[]])[0] or ["No relevant context found."]
-    context = "\n\n---\n\n".join(chunks)
+    doc_chunks = results.get("documents", [[]])[0] or ["No relevant context found."]
+    context = "\n\n---\n\n".join(doc_chunks)
 
     persona = request.persona if request.persona in PERSONA_PROMPTS else "sre"
     system_prompt = PERSONA_PROMPTS[persona]
     user_prompt = f"Question: {request.query}\n\nDocument context:\n{context}\n\nProvide a focused analysis."
 
-    groq_client = Groq(api_key=api_key)
-
-    # Compact history before building messages
-    compacted = compact_history(history, groq_client, state["file_type"])
+    # Compact history using a lightweight Groq call (avoids billing on expensive models)
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if groq_api_key:
+        compactor = Groq(api_key=groq_api_key)
+        compacted = compact_history(history, compactor, state["file_type"])
+    else:
+        compacted = history[-10:]
     state["history"] = compacted
 
     def event_stream():
@@ -394,8 +481,8 @@ async def query_document(request: QueryRequest):
         msgs.append({"role": "user", "content": user_prompt})
 
         output = ""
-        stream = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile", messages=msgs,
+        stream = llm.chat.completions.create(
+            model=model, messages=msgs,
             temperature=0.1, max_tokens=2048, stream=True,
         )
         for part in stream:
@@ -408,16 +495,18 @@ async def query_document(request: QueryRequest):
         history.append({"role": "user", "content": request.query})
         history.append({"role": "assistant", "content": output.strip()})
 
-        # Generate follow-up suggestions
+        # Generate follow-up suggestions (always use Groq for cost efficiency)
         try:
+            followup_client = Groq(api_key=groq_api_key) if groq_api_key else llm
+            followup_model  = "llama-3.3-70b-versatile" if groq_api_key else model
             fp = (
                 f"Based on this {state['file_type']} analysis:\n"
                 f"Q: {request.query}\nA: {output[:400]}...\n\n"
                 "Generate exactly 3 short follow-up questions. "
                 "Return ONLY a JSON array of 3 strings. No other text."
             )
-            fr = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            fr = followup_client.chat.completions.create(
+                model=followup_model,
                 messages=[{"role": "user", "content": fp}],
                 temperature=0.4, max_tokens=120, stream=False,
             )

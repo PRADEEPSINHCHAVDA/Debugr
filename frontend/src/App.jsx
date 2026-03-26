@@ -342,19 +342,34 @@ export default function App() {
   const [themeMode, setThemeMode]       = useState(() => localStorage.getItem('debugr-theme') || 'dark')
   const [queryCount, setQueryCount]     = useState(0)
   const [sessionHistory, setSessionHistory] = useState([])
+  const [providers, setProviders]           = useState([])
+  const [provider, setProvider]             = useState('groq')
+  const [model, setModel]                   = useState('llama-3.3-70b-versatile')
 
   const messagesEndRef = useRef(null)
   const textareaRef    = useRef(null)
   const uploadInputRef = useRef(null)
   const criticalFired  = useRef(false)
 
-  /* Load session history on mount */
+  /* Load session history + providers on mount */
   useEffect(() => {
     fetch(`${API_BASE}/sessions`)
       .then(r => r.json())
       .then(data => setSessionHistory(Array.isArray(data) ? data : []))
       .catch(() => {})
+    fetch(`${API_BASE}/providers`)
+      .then(r => r.json())
+      .then(data => setProviders(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }, [])
+
+  /* When provider changes, reset model to that provider's default */
+  const currentProviderPreset = providers.find(p => p.id === provider)
+  const handleProviderChange = (pid) => {
+    setProvider(pid)
+    const preset = providers.find(p => p.id === pid)
+    if (preset) setModel(preset.default_model)
+  }
 
   /* Theme effect */
   useEffect(() => {
@@ -452,7 +467,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.session_id, query, persona }),
+        body: JSON.stringify({ session_id: session.session_id, query, persona, provider, model }),
       })
       if (!res.ok) throw new Error((await res.text()) || 'Query failed.')
       if (!res.body) throw new Error('No stream.')
@@ -542,6 +557,26 @@ export default function App() {
           </select>
         </div>
 
+        {/* Provider + Model */}
+        <div className="sidebar-section">
+          <p className="section-label">LLM Provider</p>
+          <select className="persona-select" value={provider} onChange={e => handleProviderChange(e.target.value)}>
+            {providers.length > 0
+              ? providers.map(p => (
+                  <option key={p.id} value={p.id} disabled={!p.available}>
+                    {p.label}{!p.available ? ' (no API key)' : ''}
+                  </option>
+                ))
+              : <option value="groq">Groq</option>
+            }
+          </select>
+          <select className="persona-select" style={{ marginTop: 6 }} value={model} onChange={e => setModel(e.target.value)}>
+            {(currentProviderPreset?.models ?? [{ id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' }]).map(m => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Upload */}
         <div className="sidebar-section">
           <p className="section-label">Upload File</p>
@@ -580,7 +615,9 @@ export default function App() {
         <div className="sidebar-footer">
           <p className="stack-header">Stack</p>
           <div className="stack-chips">
-            {['Llama 3.3 70B','ChromaDB','RAG','FastAPI','Groq'].map(t => <span key={t} className="stack-chip">{t}</span>)}
+            {[currentProviderPreset?.label ?? 'Groq', 'ChromaDB', 'RAG', 'FastAPI', 'SQLite'].map(t => (
+              <span key={t} className="stack-chip">{t}</span>
+            ))}
           </div>
         </div>
       </aside>
@@ -604,7 +641,10 @@ export default function App() {
                 {themeMode === 'dark' ? '☀️' : '🌙'}
               </button>
             </div>
-            <div className="model-tag"><div className="model-tag-dot" />Groq · Llama 3.3 70B</div>
+            <div className="model-tag">
+              <div className="model-tag-dot" />
+              {(currentProviderPreset?.label ?? 'Groq')} · {currentProviderPreset?.models?.find(m => m.id === model)?.label ?? model}
+            </div>
           </div>
         </div>
 
