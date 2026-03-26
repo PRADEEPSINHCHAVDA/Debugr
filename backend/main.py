@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 import chromadb
 import pandas as pd
 import pdfplumber
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -88,10 +89,107 @@ def load_sessions_db() -> Dict[str, Dict[str, Any]]:
     return result
 
 
+def init_cron_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cron_jobs (
+            id               TEXT PRIMARY KEY,
+            session_id       TEXT NOT NULL,
+            label            TEXT NOT NULL,
+            query            TEXT NOT NULL,
+            persona          TEXT NOT NULL DEFAULT 'sre',
+            provider         TEXT NOT NULL DEFAULT 'groq',
+            model            TEXT NOT NULL DEFAULT 'llama-3.3-70b-versatile',
+            interval_minutes INTEGER NOT NULL DEFAULT 60,
+            enabled          INTEGER NOT NULL DEFAULT 1,
+            last_run         TEXT,
+            last_result      TEXT,
+            created_at       TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def load_cron_jobs_db() -> List[Dict]:
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("SELECT * FROM cron_jobs ORDER BY created_at DESC").fetchall()
+    conn.close()
+    cols = ["id","session_id","label","query","persona","provider","model",
+            "interval_minutes","enabled","last_run","last_result","created_at"]
+    return [dict(zip(cols, row)) for row in rows]
+
+
+def update_cron_result(job_id: str, result: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE cron_jobs SET last_run=?, last_result=? WHERE id=?",
+        (datetime.now().isoformat(), result[:2000], job_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+scheduler = BackgroundScheduler(timezone="UTC")
+
+
+def run_cron_job(job: Dict):
+    state = sessions.get(job["session_id"])
+    if not state:
+        update_cron_result(job["id"], "Session not found — skipped.")
+        return
+    collection = state["collection"]
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        update_cron_result(job["id"], "GROQ_API_KEY not set — skipped.")
+        return
+    try:
+        q_emb = embedder.encode([job["query"]], convert_to_numpy=True).tolist()[0]
+        n = max(1, min(5, collection.count()))
+        results = collection.query(query_embeddings=[q_emb], n_results=n)
+        doc_chunks = results.get("documents", [[]])[0] or ["No relevant context."]
+        context = "\n\n---\n\n".join(doc_chunks)
+        persona = job.get("persona", "sre")
+        system_prompt = PERSONA_PROMPTS.get(persona, PERSONA_PROMPTS["sre"])
+        user_prompt = f"Scheduled scan query: {job['query']}\n\nDocument context:\n{context}\n\nProvide a focused analysis."
+        client = Groq(api_key=api_key)
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            temperature=0.1, max_tokens=1024, stream=False,
+        )
+        result = resp.choices[0].message.content.strip()
+        result = redact_output(result)
+    except Exception as e:
+        result = f"Error during scheduled scan: {e}"
+    update_cron_result(job["id"], result)
+
+
+def schedule_job(job: Dict):
+    scheduler.add_job(
+        run_cron_job, "interval",
+        minutes=int(job["interval_minutes"]),
+        id=job["id"], replace_existing=True,
+        kwargs={"job": job},
+    )
+
+
 @app.on_event("startup")
 async def startup_event():
     init_db()
+    init_cron_db()
     sessions.update(load_sessions_db())
+    # Re-schedule all enabled cron jobs
+    for job in load_cron_jobs_db():
+        if job["enabled"]:
+            schedule_job(job)
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    scheduler.shutdown(wait=False)
 
 
 # ── LLM Provider Presets ─────────────────────────────────────────────────────
@@ -533,6 +631,83 @@ async def delete_session(session_id: str):
             pass
         delete_session_db(session_id)
     return {"status": "deleted"}
+
+
+class CronJobRequest(BaseModel):
+    session_id: str
+    label: str
+    query: str
+    persona: str = "sre"
+    provider: str = "groq"
+    model: str = "llama-3.3-70b-versatile"
+    interval_minutes: int = 60
+
+
+@app.post("/cron")
+async def create_cron_job(req: CronJobRequest):
+    if req.session_id not in sessions:
+        raise HTTPException(404, "Session not found.")
+    if not 5 <= req.interval_minutes <= 10080:
+        raise HTTPException(400, "interval_minutes must be between 5 and 10080 (1 week).")
+    job_id = str(uuid.uuid4())
+    created_at = datetime.now().isoformat()
+    job: Dict = {
+        "id": job_id, "session_id": req.session_id, "label": req.label,
+        "query": req.query, "persona": req.persona, "provider": req.provider,
+        "model": req.model, "interval_minutes": req.interval_minutes,
+        "enabled": 1, "last_run": None, "last_result": None, "created_at": created_at,
+    }
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "INSERT INTO cron_jobs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (job_id, req.session_id, req.label, req.query, req.persona, req.provider,
+         req.model, req.interval_minutes, 1, None, None, created_at),
+    )
+    conn.commit()
+    conn.close()
+    schedule_job(job)
+    return job
+
+
+@app.get("/cron")
+async def list_cron_jobs():
+    return load_cron_jobs_db()
+
+
+@app.delete("/cron/{job_id}")
+async def delete_cron_job(job_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("DELETE FROM cron_jobs WHERE id=?", (job_id,))
+    conn.commit()
+    conn.close()
+    try:
+        scheduler.remove_job(job_id)
+    except Exception:
+        pass
+    return {"status": "deleted"}
+
+
+@app.patch("/cron/{job_id}/toggle")
+async def toggle_cron_job(job_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT enabled FROM cron_jobs WHERE id=?", (job_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Cron job not found.")
+    new_state = 0 if row[0] else 1
+    conn.execute("UPDATE cron_jobs SET enabled=? WHERE id=?", (new_state, job_id))
+    conn.commit()
+    conn.close()
+    if new_state:
+        jobs = [j for j in load_cron_jobs_db() if j["id"] == job_id]
+        if jobs:
+            schedule_job(jobs[0])
+    else:
+        try:
+            scheduler.remove_job(job_id)
+        except Exception:
+            pass
+    return {"id": job_id, "enabled": bool(new_state)}
 
 
 @app.get("/health")

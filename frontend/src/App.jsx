@@ -288,6 +288,97 @@ function HeroState() {
   )
 }
 
+/* ─── CronPanel ─── */
+function CronPanel({ session, cronJobs, onAdd, onDelete, onToggle }) {
+  const [open, setOpen]         = useState(false)
+  const [label, setLabel]       = useState('')
+  const [query, setCronQuery]   = useState('')
+  const [interval, setInterval] = useState(60)
+  const [adding, setAdding]     = useState(false)
+
+  const fmt = (iso) => {
+    if (!iso) return 'Never'
+    try { return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+    catch { return iso }
+  }
+
+  const handleAdd = async () => {
+    if (!session || !label.trim() || !query.trim()) return
+    setAdding(true)
+    await onAdd({ label: label.trim(), query: query.trim(), interval_minutes: Number(interval) })
+    setLabel(''); setCronQuery(''); setInterval(60); setAdding(false)
+  }
+
+  return (
+    <div className="skills-section">
+      <button className="skills-toggle" onClick={() => setOpen(o => !o)}>
+        <span className="skills-toggle-label">⏱ Scheduled Scans ({cronJobs.length})</span>
+        <span className={`skills-toggle-arrow${open ? ' open' : ''}`}>▼</span>
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Existing jobs */}
+          {cronJobs.map(j => (
+            <div key={j.id} className="file-card" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '8px 10px', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{j.label}</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="skill-btn" style={{ padding: '2px 7px', fontSize: 10 }}
+                    onClick={() => onToggle(j.id)}>
+                    {j.enabled ? '⏸ Pause' : '▶ Resume'}
+                  </button>
+                  <button className="btn-ghost-danger" style={{ padding: '2px 6px', fontSize: 10 }}
+                    onClick={() => onDelete(j.id)}>✕</button>
+                </div>
+              </div>
+              <p className="file-meta" style={{ marginTop: 2 }}>Every {j.interval_minutes}m · Last: {fmt(j.last_run)}</p>
+              {j.last_result && (
+                <p className="file-meta" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {j.last_result.slice(0, 80)}…
+                </p>
+              )}
+            </div>
+          ))}
+
+          {/* Add new job */}
+          {session ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 4 }}>
+              <input
+                className="persona-select"
+                placeholder="Label (e.g. Hourly error check)"
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                style={{ fontSize: 11 }}
+              />
+              <textarea
+                className="persona-select"
+                placeholder="Query to run automatically…"
+                value={query}
+                onChange={e => setCronQuery(e.target.value)}
+                rows={2}
+                style={{ fontSize: 11, resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>Every</label>
+                <input type="number" min={5} max={10080} value={interval}
+                  onChange={e => setInterval(e.target.value)}
+                  className="persona-select" style={{ width: 64, fontSize: 11 }} />
+                <label style={{ fontSize: 10, color: 'var(--text-muted)' }}>min</label>
+              </div>
+              <button className="skill-btn" disabled={adding || !label.trim() || !query.trim()} onClick={handleAdd}
+                style={{ justifyContent: 'center', fontSize: 11 }}>
+                {adding ? 'Scheduling…' : '+ Schedule Scan'}
+              </button>
+            </div>
+          ) : (
+            <p className="file-meta" style={{ textAlign: 'center' }}>Upload a file first</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── SessionHistory ─── */
 function SessionHistory({ history, currentId, onResume, onDelete }) {
   const [open, setOpen] = useState(false)
@@ -345,23 +436,48 @@ export default function App() {
   const [providers, setProviders]           = useState([])
   const [provider, setProvider]             = useState('groq')
   const [model, setModel]                   = useState('llama-3.3-70b-versatile')
+  const [cronJobs, setCronJobs]             = useState([])
 
   const messagesEndRef = useRef(null)
   const textareaRef    = useRef(null)
   const uploadInputRef = useRef(null)
   const criticalFired  = useRef(false)
 
-  /* Load session history + providers on mount */
+  /* Load session history + providers + cron jobs on mount */
   useEffect(() => {
-    fetch(`${API_BASE}/sessions`)
-      .then(r => r.json())
-      .then(data => setSessionHistory(Array.isArray(data) ? data : []))
-      .catch(() => {})
-    fetch(`${API_BASE}/providers`)
-      .then(r => r.json())
-      .then(data => setProviders(Array.isArray(data) ? data : []))
-      .catch(() => {})
+    fetch(`${API_BASE}/sessions`).then(r => r.json()).then(d => setSessionHistory(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch(`${API_BASE}/providers`).then(r => r.json()).then(d => setProviders(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch(`${API_BASE}/cron`).then(r => r.json()).then(d => setCronJobs(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
+
+  /* Cron handlers */
+  const addCronJob = async ({ label, query, interval_minutes }) => {
+    if (!session) return
+    try {
+      const res = await fetch(`${API_BASE}/cron`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: session.session_id, label, query, persona, provider, model, interval_minutes }),
+      })
+      if (!res.ok) return
+      const job = await res.json()
+      setCronJobs(prev => [job, ...prev])
+    } catch {}
+  }
+
+  const deleteCronJob = async (jobId) => {
+    try { await fetch(`${API_BASE}/cron/${jobId}`, { method: 'DELETE' }) } catch {}
+    setCronJobs(prev => prev.filter(j => j.id !== jobId))
+  }
+
+  const toggleCronJob = async (jobId) => {
+    try {
+      const res = await fetch(`${API_BASE}/cron/${jobId}/toggle`, { method: 'PATCH' })
+      if (!res.ok) return
+      const { enabled } = await res.json()
+      setCronJobs(prev => prev.map(j => j.id === jobId ? { ...j, enabled: enabled ? 1 : 0 } : j))
+    } catch {}
+  }
 
   /* When provider changes, reset model to that provider's default */
   const currentProviderPreset = providers.find(p => p.id === provider)
@@ -602,6 +718,15 @@ export default function App() {
 
         {/* Skills */}
         <SkillsPanel onSelect={q => { if (!isQuerying && session) handleQuery(q) }} disabled={!session || isQuerying} />
+
+        {/* Scheduled Scans */}
+        <CronPanel
+          session={session}
+          cronJobs={cronJobs}
+          onAdd={addCronJob}
+          onDelete={deleteCronJob}
+          onToggle={toggleCronJob}
+        />
 
         {/* Recent Sessions */}
         <SessionHistory
