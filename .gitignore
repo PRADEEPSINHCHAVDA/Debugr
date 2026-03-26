@@ -17,6 +17,7 @@ htmlcov/
 
 backend/.chroma/
 backend/chroma/
+backend/data/
 
 frontend/node_modules/
 frontend/dist/
