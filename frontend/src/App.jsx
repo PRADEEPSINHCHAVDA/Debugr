@@ -288,6 +288,45 @@ function HeroState() {
   )
 }
 
+/* ─── SessionHistory ─── */
+function SessionHistory({ history, currentId, onResume, onDelete }) {
+  const [open, setOpen] = useState(false)
+  if (!history.length) return null
+  const fmt = (iso) => {
+    try { return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+    catch { return '' }
+  }
+  return (
+    <div className="skills-section">
+      <button className="skills-toggle" onClick={() => setOpen(o => !o)}>
+        <span className="skills-toggle-label">Recent Sessions ({history.length})</span>
+        <span className={`skills-toggle-arrow${open ? ' open' : ''}`}>▼</span>
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {history.map(s => (
+            <div key={s.session_id} className={`file-card${s.session_id === currentId ? ' active-session' : ''}`}
+              style={{ cursor: 'pointer', padding: '8px 10px', gap: 8 }}
+              onClick={() => onResume(s)}>
+              <FileIconBadge type={s.file_type} />
+              <div className="file-info" style={{ flex: 1, minWidth: 0 }}>
+                <p className="file-name" style={{ fontSize: 11 }}>{s.filename}</p>
+                <p className="file-meta">{s.chunks} chunks · {fmt(s.created_at)}</p>
+              </div>
+              <button
+                className="btn-ghost-danger"
+                style={{ padding: '2px 6px', fontSize: 10, flexShrink: 0 }}
+                onClick={e => { e.stopPropagation(); onDelete(s.session_id) }}
+                title="Delete session"
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── App ─── */
 export default function App() {
   const [session, setSession]           = useState(null)
@@ -302,11 +341,20 @@ export default function App() {
   const [followUps, setFollowUps]       = useState([])
   const [themeMode, setThemeMode]       = useState(() => localStorage.getItem('debugr-theme') || 'dark')
   const [queryCount, setQueryCount]     = useState(0)
+  const [sessionHistory, setSessionHistory] = useState([])
 
   const messagesEndRef = useRef(null)
   const textareaRef    = useRef(null)
   const uploadInputRef = useRef(null)
   const criticalFired  = useRef(false)
+
+  /* Load session history on mount */
+  useEffect(() => {
+    fetch(`${API_BASE}/sessions`)
+      .then(r => r.json())
+      .then(data => setSessionHistory(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
 
   /* Theme effect */
   useEffect(() => {
@@ -354,6 +402,25 @@ export default function App() {
   }
 
   /* Upload */
+  /* Resume a past session */
+  const resumeSession = (s) => {
+    setSession(s)
+    setMessages([{ role: 'assistant', content: `**${s.filename}** resumed. Type: **${s.file_type}** · **${s.chunks}** chunks ready.\n\nAsk me anything about this file.` }])
+    setInput(''); setFollowUps([]); setAlertBanner(null); setFeedbacks({})
+    setQueryCount(0); criticalFired.current = false; setError(null)
+  }
+
+  /* Delete a session from history */
+  const deleteFromHistory = async (sid) => {
+    try { await fetch(`${API_BASE}/session/${sid}`, { method: 'DELETE' }) } catch {}
+    setSessionHistory(prev => prev.filter(s => s.session_id !== sid))
+    if (session?.session_id === sid) {
+      setSession(null); setMessages([]); setInput(''); setFollowUps([])
+      setAlertBanner(null); setFeedbacks({}); setQueryCount(0); criticalFired.current = false
+    }
+  }
+
+  /* Upload */
   const handleUpload = async (file) => {
     setIsUploading(true); setError(null); setMessages([]); setSession(null)
     setInput(''); setFollowUps([]); setAlertBanner(null); setFeedbacks({})
@@ -366,6 +433,7 @@ export default function App() {
       const data = await res.json()
       setSession(data)
       setMessages([{ role: 'assistant', content: `**${data.filename}** indexed. Type: **${data.file_type}** · **${data.chunks}** chunks ready.\n\nAsk me anything about this file.` }])
+      setSessionHistory(prev => [data, ...prev.filter(s => s.session_id !== data.session_id)])
     } catch (err) {
       setError(`Upload failed: ${err.message}`)
     } finally {
@@ -499,6 +567,14 @@ export default function App() {
 
         {/* Skills */}
         <SkillsPanel onSelect={q => { if (!isQuerying && session) handleQuery(q) }} disabled={!session || isQuerying} />
+
+        {/* Recent Sessions */}
+        <SessionHistory
+          history={sessionHistory}
+          currentId={session?.session_id}
+          onResume={resumeSession}
+          onDelete={deleteFromHistory}
+        />
 
         {/* Stack */}
         <div className="sidebar-footer">

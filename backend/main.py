@@ -2,7 +2,10 @@ import io
 import json
 import os
 import re
+import sqlite3
 import uuid
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import chromadb
@@ -18,11 +21,79 @@ from sentence_transformers import SentenceTransformer
 app = FastAPI(title="Debugr AI — RAG DevOps Assistant")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-chroma_client = chromadb.Client()
+# ── Persistence setup ─────────────────────────────────────────────────────────
+DATA_DIR = Path("./data")
+DATA_DIR.mkdir(exist_ok=True)
+DB_PATH = DATA_DIR / "sessions.db"
+CHROMA_PATH = str(DATA_DIR / "chroma")
+
+chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 sessions: Dict[str, Dict[str, Any]] = {}
 
-# ── Persona system prompts ───────────────────────────────────────────────────
+# ── SQLite helpers ────────────────────────────────────────────────────────────
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id    TEXT PRIMARY KEY,
+            filename      TEXT NOT NULL,
+            file_type     TEXT NOT NULL,
+            chunks        INTEGER NOT NULL,
+            auto_insights TEXT NOT NULL,
+            created_at    TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def save_session_db(session_id: str, filename: str, file_type: str, chunks: int, auto_insights: dict):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?, ?, ?)",
+        (session_id, filename, file_type, chunks, json.dumps(auto_insights), datetime.now().isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_session_db(session_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+    conn.commit()
+    conn.close()
+
+
+def load_sessions_db() -> Dict[str, Dict[str, Any]]:
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("SELECT * FROM sessions ORDER BY created_at DESC").fetchall()
+    conn.close()
+    result: Dict[str, Dict[str, Any]] = {}
+    for sid, filename, file_type, chunks, insights_json, created_at in rows:
+        try:
+            collection = chroma_client.get_collection(name=sid)
+            result[sid] = {
+                "collection": collection,
+                "history": [],
+                "filename": filename,
+                "file_type": file_type,
+                "chunks": chunks,
+                "auto_insights": json.loads(insights_json),
+                "created_at": created_at,
+            }
+        except Exception:
+            delete_session_db(sid)  # ChromaDB collection gone — clean up metadata
+    return result
+
+
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+    sessions.update(load_sessions_db())
+
+
+# ── Persona system prompts ────────────────────────────────────────────────────
 PERSONA_PROMPTS: Dict[str, str] = {
     "sre": """You are an expert SRE AI assistant analyzing logs, CSVs, and technical documents.
 
@@ -80,7 +151,49 @@ Focus on: outliers, missing values, type mismatches, duplicate rows, statistical
 }
 
 
-# ── Parsers ──────────────────────────────────────────────────────────────────
+# ── Output Redaction ──────────────────────────────────────────────────────────
+REDACT_PATTERNS = [
+    (re.compile(r'sk-[a-zA-Z0-9]{20,}', re.IGNORECASE), '[REDACTED_API_KEY]'),
+    (re.compile(r'AKIA[0-9A-Z]{16}'), '[REDACTED_AWS_KEY]'),
+    (re.compile(r'eyJ[a-zA-Z0-9._-]{20,}'), '[REDACTED_JWT]'),
+    (re.compile(r'(password\s*[=:]\s*)\S+', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(secret\s*[=:]\s*)\S+', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(token\s*[=:]\s*)\S+', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(api[_-]?key\s*[=:]\s*)\S+', re.IGNORECASE), r'\1[REDACTED]'),
+]
+
+
+def redact_output(text: str) -> str:
+    for pattern, replacement in REDACT_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+# ── Context Compaction ────────────────────────────────────────────────────────
+def compact_history(history: List[Dict], groq_client: Groq, file_type: str) -> List[Dict]:
+    """When history exceeds 14 messages, summarize the oldest to preserve context."""
+    if len(history) <= 14:
+        return history
+    to_compress = history[:-6]
+    recent = history[-6:]
+    compress_prompt = (
+        f"Summarize these {file_type} analysis conversation exchanges into 3-5 bullet points "
+        "capturing key findings and conclusions. Be very concise.\n\n"
+        + "\n".join(f"{m['role'].upper()}: {m['content'][:300]}" for m in to_compress)
+    )
+    try:
+        resp = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": compress_prompt}],
+            temperature=0.1, max_tokens=300, stream=False,
+        )
+        summary = resp.choices[0].message.content.strip()
+        return [{"role": "assistant", "content": f"[Conversation summary]\n{summary}"}] + recent
+    except Exception:
+        return history[-10:]  # Fallback: keep last 10
+
+
+# ── Parsers ───────────────────────────────────────────────────────────────────
 def parse_pdf(content: bytes) -> str:
     with pdfplumber.open(io.BytesIO(content)) as pdf:
         return "\n".join(page.extract_text() or "" for page in pdf.pages)
@@ -177,6 +290,21 @@ def detect_auto_insights(file_type: str, text: str, df: Optional[pd.DataFrame] =
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+@app.get("/sessions")
+async def list_sessions():
+    return [
+        {
+            "session_id": sid,
+            "filename": s["filename"],
+            "file_type": s["file_type"],
+            "chunks": s.get("chunks", 0),
+            "created_at": s.get("created_at", ""),
+            "auto_insights": s.get("auto_insights", {}),
+        }
+        for sid, s in sorted(sessions.items(), key=lambda x: x[1].get("created_at", ""), reverse=True)
+    ]
+
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     if not file.filename:
@@ -211,11 +339,19 @@ async def upload_file(file: UploadFile = File(...)):
         metadatas=[{"filename": filename, "file_type": file_type}] * len(chunks),
     )
     insights = detect_auto_insights(file_type, text, df)
+    created_at = datetime.now().isoformat()
     sessions[session_id] = {
         "collection": collection, "history": [],
-        "filename": filename, "file_type": file_type, "auto_insights": insights,
+        "filename": filename, "file_type": file_type,
+        "chunks": len(chunks), "auto_insights": insights,
+        "created_at": created_at,
     }
-    return {"session_id": session_id, "filename": filename, "chunks": len(chunks), "file_type": file_type, "auto_insights": insights}
+    save_session_db(session_id, filename, file_type, len(chunks), insights)
+    return {
+        "session_id": session_id, "filename": filename,
+        "chunks": len(chunks), "file_type": file_type,
+        "auto_insights": insights, "created_at": created_at,
+    }
 
 
 class QueryRequest(BaseModel):
@@ -247,10 +383,14 @@ async def query_document(request: QueryRequest):
 
     groq_client = Groq(api_key=api_key)
 
+    # Compact history before building messages
+    compacted = compact_history(history, groq_client, state["file_type"])
+    state["history"] = compacted
+
     def event_stream():
         msgs = [{"role": "system", "content": system_prompt}]
-        if history:
-            msgs.extend(history[-8:])
+        if compacted:
+            msgs.extend(compacted[-8:])
         msgs.append({"role": "user", "content": user_prompt})
 
         output = ""
@@ -261,13 +401,12 @@ async def query_document(request: QueryRequest):
         for part in stream:
             tok = part.choices[0].delta.content if part.choices else None
             if tok:
+                tok = redact_output(tok)
                 output += tok
                 yield f"data: {json.dumps({'content': tok})}\n\n"
 
         history.append({"role": "user", "content": request.query})
         history.append({"role": "assistant", "content": output.strip()})
-        if len(history) > 20:
-            del history[:-20]
 
         # Generate follow-up suggestions
         try:
@@ -299,10 +438,14 @@ async def query_document(request: QueryRequest):
 async def delete_session(session_id: str):
     state = sessions.pop(session_id, None)
     if state:
-        chroma_client.delete_collection(name=session_id)
+        try:
+            chroma_client.delete_collection(name=session_id)
+        except Exception:
+            pass
+        delete_session_db(session_id)
     return {"status": "deleted"}
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "sessions": len(sessions)}
