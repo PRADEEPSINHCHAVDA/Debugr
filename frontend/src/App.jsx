@@ -256,46 +256,6 @@ function FileIconBadge({ type }) {
   return <div className={`file-icon-badge ${t}`}>{icons[t] || icons.log}</div>
 }
 
-/* ─── UploadZone ─── */
-function UploadZone({ onUpload, isUploading, inputRef }) {
-  const [isDragging, setIsDragging] = useState(false)
-  const localRef = useRef(null)
-  const ref = inputRef || localRef
-
-  return (
-    <div
-      onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-      onDragLeave={() => setIsDragging(false)}
-      onDrop={e => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) onUpload(f) }}
-      onClick={() => ref.current?.click()}
-      className={`upload-zone ${isDragging ? 'dragging' : ''} ${isUploading ? 'uploading' : ''}`}
-    >
-      <input ref={ref} type="file" accept=".pdf,.csv,.log,.txt,.env" className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = '' }} />
-      {isUploading ? (
-        <div className="upload-content">
-          <div className="upload-icon-wrap"><div className="processing-ring" /></div>
-          <div className="upload-text-group">
-            <span className="upload-title">Indexing…</span>
-            <span className="upload-sub">Please wait</span>
-          </div>
-        </div>
-      ) : (
-        <div className="upload-content">
-          <div className="upload-icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-          </div>
-          <div className="upload-text-group">
-            <span className="upload-title">Drop file or click</span>
-            <span className="upload-sub">PDF · CSV · LOG · TXT</span>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 /* ─── HeroState ─── */
 function HeroState({ onUpload, isUploading, inputRef }) {
@@ -745,12 +705,6 @@ export default function App() {
               <option key={m.id} value={m.id}>{m.label}</option>
             ))}
           </select>
-        </div>
-
-        {/* Upload */}
-        <div className="sidebar-section">
-          <p className="section-label">Upload File</p>
-          <UploadZone onUpload={handleUpload} isUploading={isUploading} inputRef={uploadInputRef} />
         </div>
 
         {/* Active file */}

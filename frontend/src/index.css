@@ -339,7 +339,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 32px;
+  margin: 48px auto;
+  max-width: 480px;
+  width: 100%;
+  align-self: center;
   border: 2px dashed var(--grey-300);
   cursor: pointer;
   transition: border-color 80ms linear, background 80ms linear;
@@ -355,8 +358,8 @@ body {
 .hero-drop.uploading { pointer-events: none; border-style: solid; border-color: var(--black); }
 .hero-drop-inner {
   display: flex; flex-direction: column;
-  align-items: center; gap: 16px;
-  padding: 60px 40px;
+  align-items: center; gap: 12px;
+  padding: 40px 32px;
   user-select: none;
 }
 .hero-drop-icon {
