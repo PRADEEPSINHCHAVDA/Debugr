@@ -465,39 +465,69 @@ function CronPanel({ session, cronJobs, onAdd, onDelete, onToggle }) {
 
 /* ─── SessionHistory ─── */
 function SessionHistory({ history, currentId, onResume, onDelete }) {
-  const [open, setOpen] = useState(false)
   if (!history.length) return null
-  const fmt = (iso) => {
-    try { return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
-    catch { return '' }
+
+  const relativeTime = (iso) => {
+    try {
+      const diff = Date.now() - new Date(iso).getTime()
+      const mins = Math.floor(diff / 60000)
+      if (mins < 1)   return 'Just now'
+      if (mins < 60)  return `${mins}m ago`
+      const hrs = Math.floor(mins / 60)
+      if (hrs < 24)   return `${hrs}h ago`
+      const days = Math.floor(hrs / 24)
+      if (days < 7)   return `${days}d ago`
+      return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    } catch { return '' }
   }
+
+  const typeLabel = (t) => ({ PDF: 'PDF', CSV: 'CSV', LOG: 'Log' })[t] || t
+
+  const summaryLine = (s) => {
+    const m = s.auto_insights?.metrics
+    if (!m) return `${s.chunks} chunks indexed`
+    const parts = []
+    if (m.critical > 0) parts.push(`${m.critical} critical`)
+    if (m.errors   > 0) parts.push(`${m.errors} errors`)
+    if (m.warnings > 0) parts.push(`${m.warnings} warnings`)
+    if (m.rows)         parts.push(`${m.rows} rows`)
+    if (m.columns)      parts.push(`${m.columns} cols`)
+    return parts.length ? parts.join(' · ') : `${s.chunks} chunks`
+  }
+
   return (
-    <div className="skills-section">
-      <button className="skills-toggle" onClick={() => setOpen(o => !o)}>
-        <span className="skills-toggle-label">Recent Sessions ({history.length})</span>
-        <span className={`skills-toggle-arrow${open ? ' open' : ''}`}>▼</span>
-      </button>
-      {open && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {history.map(s => (
-            <div key={s.session_id} className={`file-card${s.session_id === currentId ? ' active-session' : ''}`}
-              style={{ cursor: 'pointer', padding: '8px 10px', gap: 8 }}
-              onClick={() => onResume(s)}>
-              <FileIconBadge type={s.file_type} />
-              <div className="file-info" style={{ flex: 1, minWidth: 0 }}>
-                <p className="file-name" style={{ fontSize: 11 }}>{s.filename}</p>
-                <p className="file-meta">{s.chunks} chunks · {fmt(s.created_at)}</p>
+    <div className="session-history">
+      <p className="section-label">Recent Sessions</p>
+      <div className="session-list">
+        {history.map(s => {
+          const active = s.session_id === currentId
+          return (
+            <div
+              key={s.session_id}
+              className={`session-item${active ? ' active' : ''}`}
+              onClick={() => onResume(s)}
+            >
+              <div className="session-item-left">
+                {active && <div className="session-active-bar" />}
+                <div className="session-body">
+                  <div className="session-title">{s.filename.replace(/\.[^.]+$/, '')}</div>
+                  <div className="session-meta">
+                    <span className="session-type">{typeLabel(s.file_type)}</span>
+                    <span className="session-dot" />
+                    <span className="session-summary">{summaryLine(s)}</span>
+                  </div>
+                  <div className="session-time">{relativeTime(s.created_at)}</div>
+                </div>
               </div>
               <button
-                className="btn-ghost-danger"
-                style={{ padding: '2px 6px', fontSize: 10, flexShrink: 0 }}
+                className="session-delete"
                 onClick={e => { e.stopPropagation(); onDelete(s.session_id) }}
-                title="Delete session"
+                title="Delete"
               ><Icon.X /></button>
             </div>
-          ))}
-        </div>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }
