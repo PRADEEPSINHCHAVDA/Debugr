@@ -274,7 +274,11 @@ function UploadZone({ onUpload, isUploading, inputRef }) {
         onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = '' }} />
       {isUploading ? (
         <div className="upload-content">
-          <div className="processing-wrap"><div className="processing-ring" /><span className="upload-text">Indexing…</span></div>
+          <div className="upload-icon-wrap"><div className="processing-ring" /></div>
+          <div className="upload-text-group">
+            <span className="upload-title">Indexing…</span>
+            <span className="upload-sub">Please wait</span>
+          </div>
         </div>
       ) : (
         <div className="upload-content">
@@ -283,8 +287,10 @@ function UploadZone({ onUpload, isUploading, inputRef }) {
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
           </div>
-          <span className="upload-title">Drop your file</span>
-          <span className="upload-sub">PDF · CSV · LOG · TXT · ENV</span>
+          <div className="upload-text-group">
+            <span className="upload-title">Drop file or click</span>
+            <span className="upload-sub">PDF · CSV · LOG · TXT</span>
+          </div>
         </div>
       )}
     </div>
