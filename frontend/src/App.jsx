@@ -430,7 +430,6 @@ export default function App() {
   const [feedbacks, setFeedbacks]       = useState({})
   const [alertBanner, setAlertBanner]   = useState(null)
   const [followUps, setFollowUps]       = useState([])
-  const [themeMode, setThemeMode]       = useState(() => localStorage.getItem('debugr-theme') || 'dark')
   const [queryCount, setQueryCount]     = useState(0)
   const [sessionHistory, setSessionHistory] = useState([])
   const [providers, setProviders]           = useState([])
@@ -487,11 +486,6 @@ export default function App() {
     if (preset) setModel(preset.default_model)
   }
 
-  /* Theme effect */
-  useEffect(() => {
-    document.body.classList.toggle('light-mode', themeMode === 'light')
-    localStorage.setItem('debugr-theme', themeMode)
-  }, [themeMode])
 
   /* Auto-scroll */
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [messages])
@@ -762,9 +756,6 @@ export default function App() {
           <div className="header-right">
             <div className="header-action-btns">
               <button className="btn-icon" title="Export to Markdown (⌘E)" onClick={exportMarkdown} disabled={!messages.length}>📥</button>
-              <button className="btn-icon" title="Toggle light/dark mode" onClick={() => setThemeMode(m => m === 'dark' ? 'light' : 'dark')}>
-                {themeMode === 'dark' ? '☀️' : '🌙'}
-              </button>
             </div>
             <div className="model-tag">
               <div className="model-tag-dot" />

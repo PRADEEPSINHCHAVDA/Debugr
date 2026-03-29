@@ -1,44 +1,44 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-/* ─── Design Tokens ─── */
+/* ─── Design Tokens — Light first ─── */
 :root {
-  --bg-void: #040508;
-  --bg-deep: #070a10;
-  --bg-surface: #0c1018;
-  --bg-elevated: #111620;
-  --bg-panel: rgba(14, 18, 28, 0.85);
-  --bg-glass: rgba(255, 255, 255, 0.03);
-  --bg-glass-hover: rgba(255, 255, 255, 0.06);
+  --bg-void: #f8fafc;
+  --bg-deep: #f1f5f9;
+  --bg-surface: #e8edf5;
+  --bg-elevated: #dde3ee;
+  --bg-panel: rgba(248, 250, 252, 0.90);
+  --bg-glass: rgba(0, 0, 0, 0.03);
+  --bg-glass-hover: rgba(0, 0, 0, 0.06);
 
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --border-accent: rgba(99, 179, 237, 0.35);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --border-accent: rgba(37, 99, 235, 0.30);
 
-  --cyan: #63b3ed;
-  --cyan-bright: #90cdf4;
-  --cyan-dim: rgba(99, 179, 237, 0.12);
-  --cyan-glow: rgba(99, 179, 237, 0.25);
-  --cyan-pulse: rgba(99, 179, 237, 0.08);
+  --cyan: #2563eb;
+  --cyan-bright: #3b82f6;
+  --cyan-dim: rgba(37, 99, 235, 0.08);
+  --cyan-glow: rgba(37, 99, 235, 0.15);
+  --cyan-pulse: rgba(37, 99, 235, 0.06);
 
-  --violet: #b794f4;
-  --violet-dim: rgba(183, 148, 244, 0.12);
-  --violet-glow: rgba(183, 148, 244, 0.2);
+  --violet: #7c3aed;
+  --violet-dim: rgba(124, 58, 237, 0.08);
+  --violet-glow: rgba(124, 58, 237, 0.15);
 
-  --emerald: #68d391;
-  --emerald-dim: rgba(104, 211, 145, 0.1);
-  --emerald-glow: rgba(104, 211, 145, 0.2);
+  --emerald: #059669;
+  --emerald-dim: rgba(5, 150, 105, 0.08);
+  --emerald-glow: rgba(5, 150, 105, 0.15);
 
-  --amber: #f6ad55;
-  --amber-dim: rgba(246, 173, 85, 0.1);
+  --amber: #d97706;
+  --amber-dim: rgba(217, 119, 6, 0.08);
 
-  --red: #fc8181;
-  --red-dim: rgba(252, 129, 129, 0.1);
+  --red: #dc2626;
+  --red-dim: rgba(220, 38, 38, 0.08);
 
-  --text-primary: #f0f4ff;
-  --text-secondary: rgba(240, 244, 255, 0.65);
-  --text-muted: rgba(240, 244, 255, 0.35);
-  --text-ghost: rgba(240, 244, 255, 0.18);
+  --text-primary: #0f172a;
+  --text-secondary: rgba(15, 23, 42, 0.70);
+  --text-muted: rgba(15, 23, 42, 0.45);
+  --text-ghost: rgba(15, 23, 42, 0.25);
 
   --radius-xs: 6px;
   --radius-sm: 10px;
@@ -46,11 +46,11 @@
   --radius-lg: 20px;
   --radius-xl: 28px;
 
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
-  --shadow-md: 0 8px 32px rgba(0,0,0,0.5);
-  --shadow-lg: 0 20px 60px rgba(0,0,0,0.6);
-  --shadow-glow-cyan: 0 0 30px rgba(99, 179, 237, 0.15);
-  --shadow-glow-violet: 0 0 30px rgba(183, 148, 244, 0.15);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-md: 0 8px 32px rgba(0,0,0,0.12);
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.16);
+  --shadow-glow-cyan: 0 0 24px rgba(37, 99, 235, 0.15);
+  --shadow-glow-violet: 0 0 24px rgba(124, 58, 237, 0.12);
 
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -103,17 +103,17 @@ body {
   background: var(--bg-void);
 }
 
-/* Aurora flowing mesh */
+/* Aurora flowing mesh — light palette */
 .app::before {
   content: '';
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 130% 80% at 0%  -5%,  rgba(99,  179, 237, 0.28) 0%, transparent 50%),
-    radial-gradient(ellipse 90%  70% at 100% 110%, rgba(183, 148, 244, 0.24) 0%, transparent 50%),
-    radial-gradient(ellipse 70%  55% at 75%  15%,  rgba(104, 211, 145, 0.10) 0%, transparent 55%),
-    radial-gradient(ellipse 80%  50% at 15%  95%,  rgba(246, 173, 85,  0.08) 0%, transparent 55%),
-    radial-gradient(ellipse 50%  40% at 50%  50%,  rgba(99,  179, 237, 0.06) 0%, transparent 65%);
+    radial-gradient(ellipse 130% 80% at 0%  -5%,  rgba(37,  99,  235, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 90%  70% at 100% 110%, rgba(124, 58,  237, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse 70%  55% at 75%  15%,  rgba(5,   150, 105, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 80%  50% at 15%  95%,  rgba(217, 119, 6,   0.05) 0%, transparent 55%),
+    radial-gradient(ellipse 50%  40% at 50%  50%,  rgba(37,  99,  235, 0.04) 0%, transparent 65%);
   background-size: 200% 200%;
   animation: aurora-shift 20s ease-in-out infinite;
   pointer-events: none;
@@ -139,10 +139,10 @@ body {
   min-width: 290px;
   display: flex;
   flex-direction: column;
-  background: rgba(8, 11, 18, 0.60);
-  backdrop-filter: blur(40px) saturate(200%) brightness(0.9);
-  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(0.9);
-  border-right: 1px solid rgba(99, 179, 237, 0.12);
+  background: rgba(248, 250, 252, 0.72);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.02);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.02);
+  border-right: 1px solid rgba(37, 99, 235, 0.10);
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
@@ -560,7 +560,7 @@ body {
   justify-content: space-between;
   padding: 14px 28px;
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(6, 8, 14, 0.55);
+  background: rgba(248, 250, 252, 0.80);
   backdrop-filter: blur(40px) saturate(160%);
   -webkit-backdrop-filter: blur(40px) saturate(160%);
   flex-shrink: 0;
@@ -1043,7 +1043,7 @@ body {
 .input-area {
   padding: 16px 28px 20px;
   border-top: 1px solid var(--border-subtle);
-  background: rgba(6, 8, 14, 0.55);
+  background: rgba(248, 250, 252, 0.80);
   backdrop-filter: blur(40px) saturate(160%);
   -webkit-backdrop-filter: blur(40px) saturate(160%);
   flex-shrink: 0;
@@ -1233,22 +1233,7 @@ option { background: var(--bg-deep); }
 ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-/* ─── Light Mode ─── */
-body.light-mode {
-  --bg-void: #f8fafc; --bg-deep: #f1f5f9; --bg-surface: #e2e8f0;
-  --bg-elevated: #cbd5e1; --bg-panel: rgba(241,245,249,0.95);
-  --bg-glass: rgba(0,0,0,0.03); --bg-glass-hover: rgba(0,0,0,0.06);
-  --border-subtle: rgba(0,0,0,0.06); --border-default: rgba(0,0,0,0.1);
-  --border-strong: rgba(0,0,0,0.18); --border-accent: rgba(37,99,235,0.3);
-  --cyan: #2563eb; --cyan-bright: #3b82f6;
-  --cyan-dim: rgba(37,99,235,0.08); --cyan-glow: rgba(37,99,235,0.15);
-  --cyan-pulse: rgba(37,99,235,0.06);
-  --violet: #7c3aed; --violet-dim: rgba(124,58,237,0.08);
-  --emerald: #059669; --emerald-dim: rgba(5,150,105,0.08);
-  --amber: #d97706; --red: #dc2626; --red-dim: rgba(220,38,38,0.08);
-  --text-primary: #0f172a; --text-secondary: rgba(15,23,42,0.7);
-  --text-muted: rgba(15,23,42,0.45); --text-ghost: rgba(15,23,42,0.25);
-}
+/* Dark mode removed — light only */
 
 /* ─── Header action buttons ─── */
 .header-action-btns { display: flex; align-items: center; gap: 6px; }
@@ -1409,8 +1394,7 @@ option { background: var(--bg-deep); }
 .md-inline-code { font-family: var(--font-mono); font-size: 11px; background: rgba(99,179,237,0.1); border: 1px solid rgba(99,179,237,0.2); padding: 1px 5px; border-radius: 4px; color: var(--cyan-bright); }
 
 /* ─── Code blocks with copy ─── */
-.code-block-wrap { border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-default); margin: 8px 0; background: rgba(4,5,8,0.7); }
-body.light-mode .code-block-wrap { background: rgba(15,23,42,0.05); }
+.code-block-wrap { border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-default); margin: 8px 0; background: rgba(15,23,42,0.04); }
 .code-block-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border-subtle); }
 .code-lang { font-size: 10px; font-family: var(--font-mono); color: var(--text-ghost); letter-spacing: 0.5px; }
 .copy-btn { font-size: 10px; font-family: var(--font-mono); padding: 2px 8px; background: var(--bg-glass); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-muted); cursor: pointer; transition: all var(--transition-fast); }
