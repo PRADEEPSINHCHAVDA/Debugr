@@ -298,25 +298,51 @@ function UploadZone({ onUpload, isUploading, inputRef }) {
 }
 
 /* ─── HeroState ─── */
-function HeroState() {
+function HeroState({ onUpload, isUploading, inputRef }) {
+  const [isDragging, setIsDragging] = useState(false)
+  const localRef = useRef(null)
+  const ref = inputRef || localRef
+
+  const handleDrop = (e) => {
+    e.preventDefault(); setIsDragging(false)
+    const f = e.dataTransfer.files[0]; if (f) onUpload(f)
+  }
+
   return (
-    <div className="hero-state">
-      <div className="hero-orb">
-        <div className="hero-glow" />
-        <div className="hero-orb-ring" /><div className="hero-orb-ring-2" />
-        <div className="hero-orb-inner">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-          </svg>
+    <div
+      className={`hero-drop${isDragging ? ' dragging' : ''}${isUploading ? ' uploading' : ''}`}
+      onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
+      onClick={() => !isUploading && ref.current?.click()}
+    >
+      <input ref={ref} type="file" accept=".pdf,.csv,.log,.txt,.env" style={{display:'none'}}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = '' }} />
+
+      {isUploading ? (
+        <div className="hero-drop-inner">
+          <div className="processing-ring" style={{width:40,height:40}} />
+          <p className="hero-drop-title">Indexing file…</p>
+          <p className="hero-drop-sub">Building vector embeddings</p>
         </div>
-      </div>
-      <h1 className="hero-title">Debugr AI</h1>
-      <p className="hero-sub">Drop any log, CSV, or document into the sidebar.<br />Get instant 4-phase root-cause analysis powered by Llama&nbsp;3.3 70B.</p>
-      <div className="hero-features">
-        {[['cyan','Log Analysis'],['violet','Security Audit'],['emerald','Performance'],['cyan','RAG Search']].map(([c,l]) => (
-          <div key={l} className="hero-feature"><div className={`hero-feature-dot ${c}`} />{l}</div>
-        ))}
-      </div>
+      ) : (
+        <div className="hero-drop-inner">
+          <div className="hero-drop-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <p className="hero-drop-title">{isDragging ? 'Release to upload' : 'Drop your file here'}</p>
+          <p className="hero-drop-sub">PDF · CSV · LOG · TXT · ENV</p>
+          <div className="hero-drop-tags">
+            {['Log Analysis','Security Audit','Performance','Root Cause'].map(t => (
+              <span key={t} className="hero-drop-tag">{t}</span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -811,7 +837,7 @@ export default function App() {
 
         {/* Messages */}
         <div className="messages-area">
-          {!session && messages.length === 0 && <HeroState />}
+          {!session && messages.length === 0 && <HeroState onUpload={handleUpload} isUploading={isUploading} inputRef={uploadInputRef} />}
 
           {/* Auto-triage display on first message */}
           {session?.auto_insights?.metrics && messages.length <= 1 && (

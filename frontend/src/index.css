@@ -333,60 +333,66 @@ body {
   scrollbar-color: var(--grey-300) transparent;
 }
 
-/* ─── Hero State ─── */
-.hero-state {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: flex-start; justify-content: center;
-  padding: 0; gap: 0;
+/* ─── Hero Drop Zone (center of page) ─── */
+.hero-drop {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 32px;
+  border: 2px dashed var(--grey-300);
+  cursor: pointer;
+  transition: border-color 80ms linear, background 80ms linear;
   animation: swiss-enter 0.3s linear both;
 }
-.hero-orb { display: none; }
-.hero-glow { display: none; }
-.hero-orb-ring { display: none; }
-.hero-orb-ring-2 { display: none; }
-
-.hero-title {
-  font-size: 72px;
-  font-weight: 900;
-  letter-spacing: -3px;
-  line-height: 0.92;
-  color: var(--black);
-  margin-bottom: 24px;
-  background: none;
-  -webkit-background-clip: unset;
-  -webkit-text-fill-color: var(--black);
-  background-clip: unset;
+.hero-drop:hover { border-color: var(--black); background: var(--grey-50); }
+.hero-drop.dragging {
+  border-color: var(--red);
+  border-style: solid;
+  background: #fff5f5;
+}
+.hero-drop.dragging .hero-drop-title { color: var(--red); }
+.hero-drop.uploading { pointer-events: none; border-style: solid; border-color: var(--black); }
+.hero-drop-inner {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 16px;
+  padding: 60px 40px;
+  user-select: none;
+}
+.hero-drop-icon {
+  width: 64px; height: 64px;
+  border: 2px solid var(--black);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+.hero-drop-icon svg { width: 28px; height: 28px; stroke: var(--black); }
+.hero-drop:hover .hero-drop-icon { background: var(--black); }
+.hero-drop:hover .hero-drop-icon svg { stroke: var(--white); }
+.hero-drop-title {
+  font-size: 20px; font-weight: 800;
+  color: var(--black); letter-spacing: -0.5px;
   text-transform: uppercase;
 }
-.hero-sub {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--grey-500);
-  line-height: 1.6;
-  max-width: 320px;
-  margin-bottom: 32px;
-  font-style: italic;
+.hero-drop-sub {
+  font-size: 11px; font-family: var(--font-mono);
+  color: var(--grey-500); letter-spacing: 1px;
+  margin-top: -8px;
 }
-.hero-features {
+.hero-drop-tags {
   display: flex; gap: 0; flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 8px;
 }
-.hero-feature {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 12px;
-  border: var(--border);
-  border-right: none;
-  font-size: 9px; font-weight: 700;
-  color: var(--black); background: var(--white);
-  text-transform: uppercase; letter-spacing: 1px;
+.hero-drop-tag {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--black);
+  border: var(--border); border-right: none;
+  padding: 5px 10px; background: var(--white);
   transition: none;
 }
-.hero-feature:last-child { border-right: var(--border); }
-.hero-feature:hover { background: var(--black); color: var(--white); }
-.hero-feature:hover .hero-feature-dot { background: var(--white) !important; box-shadow: none !important; }
-.hero-feature-dot { width: 5px; height: 5px; }
-.hero-feature-dot.cyan { background: var(--black); }
-.hero-feature-dot.violet { background: var(--grey-500); }
-.hero-feature-dot.emerald { background: var(--green); }
+.hero-drop-tag:last-child { border-right: var(--border); }
+.hero-drop:hover .hero-drop-tag { background: var(--grey-50); }
 
 /* ─── Messages ─── */
 @keyframes swiss-enter {
