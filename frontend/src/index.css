@@ -328,22 +328,31 @@ body {
   flex: 1; overflow-y: auto; overflow-x: hidden;
   padding: 40px 60px 24px;
   display: flex; flex-direction: column;
-  position: relative;
   gap: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--grey-300) transparent;
 }
 
 /* ─── Hero Drop Zone (center of page) ─── */
+.hero-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Swiss grid background */
+  background-image:
+    linear-gradient(var(--grey-100) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grey-100) 1px, transparent 1px);
+  background-size: 32px 32px;
+  margin: -40px -60px -24px;
+}
 .hero-drop {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
   width: 280px;
   height: 280px;
+  background: var(--white);
   border: 2px dashed var(--grey-300);
   cursor: pointer;
   transition: border-color 80ms linear, background 80ms linear;

@@ -791,7 +791,11 @@ export default function App() {
 
         {/* Messages */}
         <div className="messages-area">
-          {!session && messages.length === 0 && <HeroState onUpload={handleUpload} isUploading={isUploading} inputRef={uploadInputRef} />}
+          {!session && messages.length === 0 && (
+            <div className="hero-center">
+              <HeroState onUpload={handleUpload} isUploading={isUploading} inputRef={uploadInputRef} />
+            </div>
+          )}
 
           {/* Auto-triage display on first message */}
           {session?.auto_insights?.metrics && messages.length <= 1 && (
