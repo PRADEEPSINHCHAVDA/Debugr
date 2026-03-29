@@ -165,8 +165,26 @@ function AlertBanner({ text, onDismiss }) {
 }
 
 /* ─── MessageBubble ─── */
-function MessageBubble({ message, index, feedback, onFeedback }) {
+function MessageBubble({ message, index, feedback, onFeedback, onRetry, onEdit, isLastAI, isQuerying }) {
   const isUser = message.role === 'user'
+  const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editVal, setEditVal] = useState(message.content)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  const handleEditSubmit = () => {
+    if (editVal.trim() && editVal.trim() !== message.content) {
+      onEdit(index, editVal.trim())
+    }
+    setEditing(false)
+  }
+
   return (
     <div className={`message-row ${isUser ? 'user-row' : ''}`}>
       <div className={`avatar ${isUser ? 'user-avatar' : 'ai-avatar'}`}>{isUser ? 'U' : 'AI'}</div>
@@ -176,14 +194,60 @@ function MessageBubble({ message, index, feedback, onFeedback }) {
             <div className="typing-indicator">
               <div className="typing-dot" /><div className="typing-dot" /><div className="typing-dot" />
             </div>
+          ) : editing ? (
+            <div className="edit-wrap">
+              <textarea
+                className="edit-textarea"
+                value={editVal}
+                onChange={e => setEditVal(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEditSubmit() }}
+                autoFocus
+                rows={3}
+              />
+              <div className="edit-actions">
+                <button className="edit-confirm-btn" onClick={handleEditSubmit}>Resubmit</button>
+                <button className="edit-cancel-btn" onClick={() => { setEditing(false); setEditVal(message.content) }}>Cancel</button>
+              </div>
+            </div>
           ) : (
             <MarkdownMessage content={message.content} />
           )}
         </div>
-        {!isUser && message.content !== '...' && (
+        {message.content !== '...' && !editing && (
           <div className="message-footer">
-            <button className={`feedback-btn${feedback === 'up' ? ' active up' : ''}`} onClick={() => onFeedback(index, 'up')} title="Helpful"><Icon.ThumbUp /></button>
-            <button className={`feedback-btn${feedback === 'down' ? ' active down' : ''}`} onClick={() => onFeedback(index, 'down')} title="Not helpful"><Icon.ThumbDown /></button>
+            {/* Copy — always shown */}
+            <button className={`msg-action-btn${copied ? ' copied' : ''}`} onClick={handleCopy} title="Copy">
+              {copied ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="1"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              )}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+
+            {/* Edit — user messages only */}
+            {isUser && (
+              <button className="msg-action-btn" onClick={() => { setEditVal(message.content); setEditing(true) }} title="Edit & resubmit">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+              </button>
+            )}
+
+            {/* Retry — last AI message only */}
+            {!isUser && isLastAI && (
+              <button className="msg-action-btn retry-btn" onClick={onRetry} disabled={isQuerying} title="Retry for better response">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                Retry
+              </button>
+            )}
+
+            {/* Feedback — AI messages only */}
+            {!isUser && (
+              <>
+                <button className={`feedback-btn${feedback === 'up' ? ' active up' : ''}`} onClick={() => onFeedback(index, 'up')} title="Helpful"><Icon.ThumbUp /></button>
+                <button className={`feedback-btn${feedback === 'down' ? ' active down' : ''}`} onClick={() => onFeedback(index, 'down')} title="Not helpful"><Icon.ThumbDown /></button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -655,6 +719,29 @@ export default function App() {
 
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleQuery() } }
 
+  /* Retry — re-send the last user message, drop the last AI response */
+  const handleRetry = () => {
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+    if (!lastUserMsg || isQuerying) return
+    setMessages(prev => {
+      // remove last AI message
+      const cut = [...prev]
+      for (let i = cut.length - 1; i >= 0; i--) {
+        if (cut[i].role === 'assistant') { cut.splice(i, 1); break }
+      }
+      return cut
+    })
+    handleQuery(lastUserMsg.content)
+  }
+
+  /* Edit — replace user message at index and re-run from that point */
+  const handleEdit = (index, newContent) => {
+    if (isQuerying) return
+    // Keep messages up to (not including) the edited message, then re-query
+    setMessages(prev => prev.slice(0, index))
+    handleQuery(newContent)
+  }
+
   const clearSession = async () => {
     if (session?.session_id) {
       try { await fetch(`${API_BASE}/session/${session.session_id}`, { method: 'DELETE' }) } catch {}
@@ -807,15 +894,22 @@ export default function App() {
             <AutoTriageBar metrics={session.auto_insights.metrics} fileType={session.file_type} />
           )}
 
-          {messages.map((msg, i) => (
-            <MessageBubble
-              key={`${msg.role}-${i}`}
-              message={msg}
-              index={i}
-              feedback={feedbacks[i]}
-              onFeedback={(idx, v) => setFeedbacks(f => ({ ...f, [idx]: f[idx] === v ? undefined : v }))}
-            />
-          ))}
+          {messages.map((msg, i) => {
+            const lastAIIndex = messages.reduce((acc, m, idx) => m.role === 'assistant' && m.content !== '...' ? idx : acc, -1)
+            return (
+              <MessageBubble
+                key={`${msg.role}-${i}`}
+                message={msg}
+                index={i}
+                feedback={feedbacks[i]}
+                onFeedback={(idx, v) => setFeedbacks(f => ({ ...f, [idx]: f[idx] === v ? undefined : v }))}
+                onRetry={handleRetry}
+                onEdit={handleEdit}
+                isLastAI={msg.role === 'assistant' && i === lastAIIndex}
+                isQuerying={isQuerying}
+              />
+            )
+          })}
 
           {session && messages.length === 1 && (
             <SuggestionChips fileType={session.file_type} onSelect={q => { if (!isQuerying) handleQuery(q) }} />

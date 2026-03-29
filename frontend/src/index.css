@@ -469,9 +469,25 @@ body {
 /* ─── Message footer ─── */
 .message-footer {
   display: flex; align-items: center; gap: 4px;
-  margin-top: 10px; opacity: 0; transition: opacity 80ms linear;
+  margin-top: 8px; opacity: 0; transition: opacity 80ms linear;
 }
 .message-row:hover .message-footer { opacity: 1; }
+
+/* shared action button */
+.msg-action-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border: var(--border); background: var(--white);
+  font-size: 10px; font-weight: 600; font-family: var(--font-mono);
+  color: var(--grey-600); cursor: pointer; transition: none;
+  text-transform: uppercase; letter-spacing: 0.3px; line-height: 1;
+}
+.msg-action-btn:hover { background: var(--black); color: var(--white); border-color: var(--black); }
+.msg-action-btn:hover svg { stroke: var(--white); }
+.msg-action-btn.copied { background: var(--green); border-color: var(--green); color: var(--white); }
+.msg-action-btn.copied svg { stroke: var(--white); }
+.msg-action-btn.retry-btn:hover { background: var(--red); border-color: var(--red); }
+.msg-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .feedback-btn {
   padding: 3px 8px; border: var(--border); background: var(--white);
   font-size: 11px; cursor: pointer; transition: none;
@@ -480,6 +496,29 @@ body {
 .feedback-btn:hover { background: var(--black); color: var(--white); border-color: var(--black); }
 .feedback-btn.active.up  { background: var(--green); border-color: var(--green); color: var(--white); }
 .feedback-btn.active.down{ background: var(--red);   border-color: var(--red);   color: var(--white); }
+
+/* ─── Edit mode ─── */
+.edit-wrap { display: flex; flex-direction: column; gap: 8px; }
+.edit-textarea {
+  width: 100%; border: var(--border); padding: 8px 10px;
+  font-size: 13px; font-family: var(--font); resize: vertical;
+  outline: none; background: var(--white); color: var(--black);
+  border-radius: 0; min-height: 64px;
+}
+.edit-textarea:focus { border-color: var(--red); }
+.edit-actions { display: flex; gap: 6px; }
+.edit-confirm-btn {
+  padding: 4px 12px; background: var(--black); color: var(--white);
+  border: var(--border); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;
+}
+.edit-confirm-btn:hover { background: var(--red); border-color: var(--red); }
+.edit-cancel-btn {
+  padding: 4px 12px; background: var(--white); color: var(--black);
+  border: var(--border); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer;
+}
+.edit-cancel-btn:hover { background: var(--grey-100); }
 
 /* ─── Suggestions ─── */
 .suggestions-section { animation: swiss-enter 0.2s linear both; padding: 20px 0 0; }
