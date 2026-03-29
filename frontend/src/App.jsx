@@ -23,9 +23,10 @@ const Icon = {
 }
 
 const PERSONAS = [
-  { id: 'sre',      label: 'SRE',          desc: 'Root-cause & reliability', icon: 'Wrench' },
-  { id: 'security', label: 'Security',      desc: 'Threat & vulnerability',   icon: 'Shield' },
-  { id: 'data',     label: 'Data Analyst',  desc: 'Statistics & anomalies',   icon: 'BarChart' },
+  { id: 'sre',      label: 'SRE — Root Cause & Reliability',  desc: 'Incident response, postmortems, K8s, DB', icon: 'Wrench' },
+  { id: 'security', label: 'Security — Threat & Compliance',  desc: 'IAM, secrets, policy drift, breaches',    icon: 'Shield' },
+  { id: 'data',     label: 'Data — Anomaly & Integrity',      desc: 'Metrics, CSV, billing, data quality',     icon: 'BarChart' },
+  { id: 'devops',   label: 'DevOps — CI/CD & IaC',            desc: 'Pipelines, Terraform, cost, infra drift', icon: 'Cpu' },
 ]
 
 const SKILLS = [
