@@ -259,16 +259,16 @@ PERSONA_PROMPTS: Dict[str, str] = {
 
 Structure every response with this exact 4-phase format:
 
-## 🔍 Phase 1: Evidence Gathered
+## Phase 1: Evidence Gathered
 Specific findings with exact references (line numbers, values, timestamps).
 
-## 💡 Phase 2: Hypotheses
+## Phase 2: Hypotheses
 Top 2-3 ranked hypotheses about what is wrong.
 
-## ✅ Phase 3: Root Cause
+## Phase 3: Root Cause
 Confirmed root cause based on evidence. Be definitive.
 
-## 🛠️ Phase 4: Recommendations
+## Phase 4: Recommendations
 Concrete ordered steps with commands where applicable.
 
 Be precise, technical, cite evidence from the document.""",
@@ -277,16 +277,16 @@ Be precise, technical, cite evidence from the document.""",
 
 Structure every response with this exact 4-phase format:
 
-## 🔍 Phase 1: Evidence Gathered
+## Phase 1: Evidence Gathered
 Security findings: auth events, access anomalies, suspicious patterns, exposed data.
 
-## 💡 Phase 2: Threat Hypotheses
+## Phase 2: Threat Hypotheses
 Top threats ranked: CRITICAL / HIGH / MEDIUM / LOW.
 
-## ✅ Phase 3: Confirmed Issues
+## Phase 3: Confirmed Issues
 Confirmed vulnerabilities, misconfigs, or breaches. CVE references if applicable.
 
-## 🛠️ Phase 4: Mitigations
+## Phase 4: Mitigations
 Prioritized steps with urgency: Immediate / 24h / 1 week.
 
 Focus on: unauthorized access, privilege escalation, data exfiltration, injection, exposed secrets.""",
@@ -298,13 +298,13 @@ Structure every response with this exact 4-phase format:
 ## 🔍 Phase 1: Data Profile
 Shape, columns, data types, value ranges, missing values, duplicates.
 
-## 💡 Phase 2: Anomaly Hypotheses
+## Phase 2: Anomaly Hypotheses
 Hypotheses about data quality issues, outliers, or unusual distributions.
 
-## ✅ Phase 3: Confirmed Issues
+## Phase 3: Confirmed Issues
 Confirmed data problems with specific column/row references and values.
 
-## 🛠️ Phase 4: Recommendations
+## Phase 4: Recommendations
 Cleaning steps, validation rules, transformation approaches, further analysis.
 
 Focus on: outliers, missing values, type mismatches, duplicate rows, statistical anomalies.""",

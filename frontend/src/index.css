@@ -1273,11 +1273,12 @@ option { background: var(--bg-deep); }
 }
 .triage-label::before { content: '> '; opacity: 0.6; }
 .triage-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 0 10px 0 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 12px 0 0;
   border-radius: 0; background: none; border: none;
   font-size: 10px; font-family: var(--font-mono); font-weight: 500;
 }
+.triage-chip svg { flex-shrink: 0; }
 .triage-chip::before { content: '['; opacity: 0.4; }
 .triage-chip::after  { content: ']'; opacity: 0.4; }
 .triage-chip.critical { color: var(--red); }

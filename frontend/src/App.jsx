@@ -2,10 +2,30 @@ import { useEffect, useRef, useState } from 'react'
 
 const API_BASE = 'http://localhost:8000'
 
+/* ─── SVG Icon components ─── */
+const Icon = {
+  Wrench: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
+  Shield: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+  BarChart: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  Download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  ThumbUp: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>,
+  ThumbDown: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>,
+  AlertTriangle: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  AlertCircle: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+  Zap: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  Memory: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/></svg>,
+  Cpu: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>,
+  Clock: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  Play: () => <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+  Pause: () => <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>,
+  X: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Circle: ({ color }) => <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill={color}/></svg>,
+}
+
 const PERSONAS = [
-  { id: 'sre',      label: '🔧 SRE',          desc: 'Root-cause & reliability' },
-  { id: 'security', label: '🔒 Security',      desc: 'Threat & vulnerability' },
-  { id: 'data',     label: '📊 Data Analyst',  desc: 'Statistics & anomalies' },
+  { id: 'sre',      label: 'SRE',          desc: 'Root-cause & reliability', icon: 'Wrench' },
+  { id: 'security', label: 'Security',      desc: 'Threat & vulnerability',   icon: 'Shield' },
+  { id: 'data',     label: 'Data Analyst',  desc: 'Statistics & anomalies',   icon: 'BarChart' },
 ]
 
 const SKILLS = [
@@ -110,18 +130,25 @@ function AutoTriageBar({ metrics, fileType }) {
     metrics.missing_values  && { cls: 'missing', label: `${metrics.missing_values} missing` },
     metrics.potential_outliers && { cls: 'outliers', label: `${metrics.potential_outliers} outliers` },
   ] : [
-    metrics.critical    && { cls: 'critical', label: `🔴 ${metrics.critical} critical` },
-    metrics.errors      && { cls: 'errors',   label: `⚠ ${metrics.errors} errors` },
-    metrics.warnings    && { cls: 'warnings', label: `⚡ ${metrics.warnings} warnings` },
-    metrics.memory_signals && { cls: 'memory', label: `💾 ${metrics.memory_signals} memory` },
-    metrics.cpu_signals    && { cls: 'cpu',    label: `🖥 ${metrics.cpu_signals} CPU` },
+    metrics.critical    && { cls: 'critical', label: `${metrics.critical} critical`,  icon: 'AlertCircle' },
+    metrics.errors      && { cls: 'errors',   label: `${metrics.errors} errors`,      icon: 'AlertTriangle' },
+    metrics.warnings    && { cls: 'warnings', label: `${metrics.warnings} warnings`,  icon: 'Zap' },
+    metrics.memory_signals && { cls: 'memory', label: `${metrics.memory_signals} memory`, icon: 'Memory' },
+    metrics.cpu_signals    && { cls: 'cpu',    label: `${metrics.cpu_signals} CPU`,       icon: 'Cpu' },
   ]
   const active = chips.filter(Boolean)
   if (!active.length) return null
   return (
     <div className="auto-triage-bar">
       <span className="triage-label">Quick scan</span>
-      {active.map((c, i) => <span key={i} className={`triage-chip ${c.cls}`}>{c.label}</span>)}
+      {active.map((c, i) => {
+        const IconComp = c.icon ? Icon[c.icon] : null
+        return (
+          <span key={i} className={`triage-chip ${c.cls}`}>
+            {IconComp && <IconComp />}{c.label}
+          </span>
+        )
+      })}
     </div>
   )
 }
@@ -130,8 +157,8 @@ function AutoTriageBar({ metrics, fileType }) {
 function AlertBanner({ text, onDismiss }) {
   return (
     <div className="alert-banner">
-      <span className="alert-banner-text">⚠ {text}</span>
-      <button className="alert-dismiss" onClick={onDismiss}>✕</button>
+      <span className="alert-banner-text"><Icon.AlertTriangle /> {text}</span>
+      <button className="alert-dismiss" onClick={onDismiss}><Icon.X /></button>
     </div>
   )
 }
@@ -154,8 +181,8 @@ function MessageBubble({ message, index, feedback, onFeedback }) {
         </div>
         {!isUser && message.content !== '...' && (
           <div className="message-footer">
-            <button className={`feedback-btn${feedback === 'up' ? ' active up' : ''}`} onClick={() => onFeedback(index, 'up')}>👍</button>
-            <button className={`feedback-btn${feedback === 'down' ? ' active down' : ''}`} onClick={() => onFeedback(index, 'down')}>👎</button>
+            <button className={`feedback-btn${feedback === 'up' ? ' active up' : ''}`} onClick={() => onFeedback(index, 'up')} title="Helpful"><Icon.ThumbUp /></button>
+            <button className={`feedback-btn${feedback === 'down' ? ' active down' : ''}`} onClick={() => onFeedback(index, 'down')} title="Not helpful"><Icon.ThumbDown /></button>
           </div>
         )}
       </div>
@@ -312,7 +339,7 @@ function CronPanel({ session, cronJobs, onAdd, onDelete, onToggle }) {
   return (
     <div className="skills-section">
       <button className="skills-toggle" onClick={() => setOpen(o => !o)}>
-        <span className="skills-toggle-label">⏱ Scheduled Scans ({cronJobs.length})</span>
+        <span className="skills-toggle-label" style={{ display:'flex', alignItems:'center', gap:5 }}><Icon.Clock /> Scheduled Scans ({cronJobs.length})</span>
         <span className={`skills-toggle-arrow${open ? ' open' : ''}`}>▼</span>
       </button>
       {open && (
@@ -325,10 +352,10 @@ function CronPanel({ session, cronJobs, onAdd, onDelete, onToggle }) {
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button className="skill-btn" style={{ padding: '2px 7px', fontSize: 10 }}
                     onClick={() => onToggle(j.id)}>
-                    {j.enabled ? '⏸ Pause' : '▶ Resume'}
+                    {j.enabled ? <><Icon.Pause /> Pause</> : <><Icon.Play /> Resume</>}
                   </button>
                   <button className="btn-ghost-danger" style={{ padding: '2px 6px', fontSize: 10 }}
-                    onClick={() => onDelete(j.id)}>✕</button>
+                    onClick={() => onDelete(j.id)}><Icon.X /></button>
                 </div>
               </div>
               <p className="file-meta" style={{ marginTop: 2 }}>Every {j.interval_minutes}m · Last: {fmt(j.last_run)}</p>
@@ -409,7 +436,7 @@ function SessionHistory({ history, currentId, onResume, onDelete }) {
                 style={{ padding: '2px 6px', fontSize: 10, flexShrink: 0 }}
                 onClick={e => { e.stopPropagation(); onDelete(s.session_id) }}
                 title="Delete session"
-              >✕</button>
+              ><Icon.X /></button>
             </div>
           ))}
         </div>
@@ -664,6 +691,7 @@ export default function App() {
           <p className="section-label">Persona</p>
           <select className="persona-select" value={persona} onChange={e => setPersona(e.target.value)}>
             {PERSONAS.map(p => <option key={p.id} value={p.id}>{p.label} — {p.desc}</option>)}
+
           </select>
         </div>
 
@@ -706,7 +734,7 @@ export default function App() {
               </div>
               <span className={`type-pill ${typeClass}`}>{session.file_type}</span>
             </div>
-            <button onClick={clearSession} className="btn-ghost-danger">✕ Clear session</button>
+            <button onClick={clearSession} className="btn-ghost-danger" style={{display:'flex',alignItems:'center',gap:5,justifyContent:'center'}}><Icon.X /> Clear session</button>
           </div>
         )}
 
@@ -755,7 +783,7 @@ export default function App() {
           </div>
           <div className="header-right">
             <div className="header-action-btns">
-              <button className="btn-icon" title="Export to Markdown (⌘E)" onClick={exportMarkdown} disabled={!messages.length}>📥</button>
+              <button className="btn-icon" title="Export to Markdown (⌘E)" onClick={exportMarkdown} disabled={!messages.length}><Icon.Download /></button>
             </div>
             <div className="model-tag">
               <div className="model-tag-dot" />
@@ -801,7 +829,7 @@ export default function App() {
           <FollowUpChips chips={followUps} onSelect={q => { if (!isQuerying) handleQuery(q) }} disabled={isQuerying} />
 
           {alertBanner && <AlertBanner text={alertBanner} onDismiss={() => setAlertBanner(null)} />}
-          {error && <div className="error-toast"><span className="error-icon">⚠</span>{error}</div>}
+          {error && <div className="error-toast"><span className="error-icon"><Icon.AlertTriangle /></span>{error}</div>}
           <div ref={messagesEndRef} />
         </div>
 
