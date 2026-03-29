@@ -253,6 +253,41 @@ def get_openai_client(provider: str) -> OpenAI:
     return OpenAI(api_key=api_key, base_url=preset["base_url"])
 
 
+# ── Universal analysis rules appended to every persona ───────────────────────
+ANALYSIS_RULES = """
+
+═══════════════════════════════════════════════════════
+MANDATORY RULES — APPLY TO EVERY RESPONSE, NO EXCEPTIONS
+═══════════════════════════════════════════════════════
+
+RULE 1 — FILE VERIFICATION:
+Before any analysis, confirm you can see the file by printing its first line
+verbatim from the document context. Format:
+  VERIFIED: <first line verbatim>
+If the first line is not present in context, respond with:
+  PARSE FAILURE: [filename] — cannot verify file contents. Stop.
+
+RULE 2 — FINANCIAL & DATA INTEGRITY REPORTING:
+When reporting financial figures, transaction issues, or data integrity problems:
+- Always name exact IDs: transaction IDs, order IDs, user IDs, SKU codes
+- Always quote the exact log line or CSV row as evidence (verbatim, in a code block)
+- Always assign severity: CRITICAL / HIGH / MEDIUM / LOW
+- Never use vague language like "some transactions were affected" or
+  "orphaned transactions were found" — name every one explicitly.
+
+RULE 3 — CROSS-FILE ANALYSIS:
+When context from multiple files is provided, treat all files as a single
+evidence corpus. Cross-reference findings across files. If a value in one file
+contradicts a value in another, flag it explicitly as [CROSS-FILE CONFLICT].
+Label which file each piece of evidence comes from.
+
+RULE 4 — CONTRADICTIONS:
+Any internal contradiction or discrepancy found in the source material must be
+flagged inline as [CONTRADICTION] with both conflicting values quoted verbatim.
+Do not silently accept inconsistent data.
+═══════════════════════════════════════════════════════
+"""
+
 # ── Persona system prompts ────────────────────────────────────────────────────
 PERSONA_PROMPTS: Dict[str, str] = {
     "sre": """You are an expert SRE AI assistant analyzing logs, CSVs, and technical documents.
@@ -271,7 +306,7 @@ Confirmed root cause based on evidence. Be definitive.
 ## Phase 4: Recommendations
 Concrete ordered steps with commands where applicable.
 
-Be precise, technical, cite evidence from the document.""",
+Be precise, technical, cite evidence from the document.""" + ANALYSIS_RULES,
 
     "security": """You are an expert Security Engineer AI assistant.
 
@@ -289,13 +324,13 @@ Confirmed vulnerabilities, misconfigs, or breaches. CVE references if applicable
 ## Phase 4: Mitigations
 Prioritized steps with urgency: Immediate / 24h / 1 week.
 
-Focus on: unauthorized access, privilege escalation, data exfiltration, injection, exposed secrets.""",
+Focus on: unauthorized access, privilege escalation, data exfiltration, injection, exposed secrets.""" + ANALYSIS_RULES,
 
     "data": """You are an expert Data Analyst AI assistant.
 
 Structure every response with this exact 4-phase format:
 
-## 🔍 Phase 1: Data Profile
+## Phase 1: Data Profile
 Shape, columns, data types, value ranges, missing values, duplicates.
 
 ## Phase 2: Anomaly Hypotheses
@@ -307,7 +342,7 @@ Confirmed data problems with specific column/row references and values.
 ## Phase 4: Recommendations
 Cleaning steps, validation rules, transformation approaches, further analysis.
 
-Focus on: outliers, missing values, type mismatches, duplicate rows, statistical anomalies.""",
+Focus on: outliers, missing values, type mismatches, duplicate rows, statistical anomalies.""" + ANALYSIS_RULES,
 }
 
 
@@ -536,6 +571,7 @@ class QueryRequest(BaseModel):
     persona: str = "sre"
     provider: str = DEFAULT_PROVIDER
     model: str = DEFAULT_MODEL
+    cross_session_ids: List[str] = []  # additional session IDs for cross-file analysis
 
 
 @app.post("/query")
@@ -557,11 +593,39 @@ async def query_document(request: QueryRequest):
     n = max(1, min(5, collection.count()))
     results = collection.query(query_embeddings=[q_emb], n_results=n)
     doc_chunks = results.get("documents", [[]])[0] or ["No relevant context found."]
-    context = "\n\n---\n\n".join(doc_chunks)
+
+    # Build primary file context block
+    primary_filename = state["filename"]
+    primary_chunks_text = "\n\n---\n\n".join(doc_chunks)
+    context_blocks = [f"[FILE: {primary_filename}]\n{primary_chunks_text}"]
+
+    # Cross-file context: fetch relevant chunks from each additional session
+    cross_ids = [sid for sid in request.cross_session_ids if sid != request.session_id]
+    for sid in cross_ids:
+        cross_state = sessions.get(sid)
+        if not cross_state:
+            continue
+        try:
+            cross_col = cross_state["collection"]
+            cn = max(1, min(5, cross_col.count()))
+            cross_results = cross_col.query(query_embeddings=[q_emb], n_results=cn)
+            cross_chunks = cross_results.get("documents", [[]])[0] or []
+            if cross_chunks:
+                cross_text = "\n\n---\n\n".join(cross_chunks)
+                context_blocks.append(f"[FILE: {cross_state['filename']}]\n{cross_text}")
+        except Exception:
+            pass
+
+    context = "\n\n══════════════════════════════\n\n".join(context_blocks)
 
     persona = request.persona if request.persona in PERSONA_PROMPTS else "sre"
     system_prompt = PERSONA_PROMPTS[persona]
-    user_prompt = f"Question: {request.query}\n\nDocument context:\n{context}\n\nProvide a focused analysis."
+    cross_note = (
+        f"\n\nNOTE: This query spans {len(context_blocks)} files. "
+        "Cross-reference findings across all files. Label evidence by [FILE: name]."
+        if len(context_blocks) > 1 else ""
+    )
+    user_prompt = f"Question: {request.query}\n\nDocument context:\n{context}{cross_note}\n\nProvide a focused analysis."
 
     # Compact history using a lightweight Groq call (avoids billing on expensive models)
     groq_api_key = os.getenv("GROQ_API_KEY")

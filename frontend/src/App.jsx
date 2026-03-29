@@ -596,7 +596,11 @@ export default function App() {
       const res = await fetch(`${API_BASE}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.session_id, query, persona, provider, model }),
+        body: JSON.stringify({
+          session_id: session.session_id,
+          query, persona, provider, model,
+          cross_session_ids: sessionHistory.map(s => s.session_id),
+        }),
       })
       if (!res.ok) throw new Error((await res.text()) || 'Query failed.')
       if (!res.body) throw new Error('No stream.')
