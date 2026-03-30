@@ -255,6 +255,31 @@ function MessageBubble({ message, index, feedback, onFeedback, onRetry, onEdit, 
   )
 }
 
+/* ─── FileContextBar ─── */
+function FileContextBar({ sessionHistory, activeSession, onRemove, disabled }) {
+  if (!sessionHistory.length) return null
+  return (
+    <div className="file-context-bar">
+      <span className="file-context-label">IN CONTEXT</span>
+      {sessionHistory.map(s => {
+        const isActive = s.session_id === activeSession?.session_id
+        return (
+          <div key={s.session_id} className={`file-chip${isActive ? ' file-chip-active' : ''}`}>
+            <span className="file-chip-type">{s.file_type}</span>
+            <span className="file-chip-name" title={s.filename}>{s.filename}</span>
+            <button
+              className="file-chip-remove"
+              onClick={() => onRemove(s.session_id)}
+              disabled={disabled}
+              aria-label={`Remove ${s.filename}`}
+            >×</button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ─── TruncationBanner ─── */
 function TruncationBanner({ warnings, onDismiss }) {
   if (!warnings.length) return null
@@ -715,11 +740,31 @@ export default function App() {
   /* Delete a session from history */
   const deleteFromHistory = async (sid) => {
     try { await fetch(`${API_BASE}/session/${sid}`, { method: 'DELETE' }) } catch {}
-    setSessionHistory(prev => prev.filter(s => s.session_id !== sid))
-    if (session?.session_id === sid) {
-      setSession(null); setMessages([]); setInput(''); setFollowUps([])
-      setAlertBanner(null); setFeedbacks({}); setQueryCount(0); criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
-    }
+    setSessionHistory(prev => {
+      const next = prev.filter(s => s.session_id !== sid)
+      if (session?.session_id === sid) {
+        if (next.length) {
+          // Switch to the next available file, keep conversation
+          setSession(next[0])
+          setMessages(prev2 => [...prev2, {
+            role: 'assistant',
+            content: `**${prev.find(s => s.session_id === sid)?.filename}** removed from context. Active file is now **${next[0].filename}**.`,
+          }])
+        } else {
+          // No files left — reset
+          setSession(null); setMessages([]); setInput(''); setFollowUps([])
+          setAlertBanner(null); setFeedbacks({}); setQueryCount(0)
+          criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
+        }
+      } else if (session) {
+        // Non-active file removed — just note it in chat
+        setMessages(prev2 => [...prev2, {
+          role: 'assistant',
+          content: `**${prev.find(s => s.session_id === sid)?.filename}** removed from context.`,
+        }])
+      }
+      return next
+    })
   }
 
   /* Upload — accepts an array of File objects.
@@ -1063,6 +1108,14 @@ export default function App() {
           {error && <div className="error-toast"><span className="error-icon"><Icon.AlertTriangle /></span>{error}</div>}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* File context chips */}
+        <FileContextBar
+          sessionHistory={sessionHistory}
+          activeSession={session}
+          onRemove={deleteFromHistory}
+          disabled={isQuerying || isUploading}
+        />
 
         {/* Input */}
         <div className="input-area">

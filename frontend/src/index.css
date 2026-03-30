@@ -797,6 +797,49 @@ option { background: var(--white); }
 .run-btn:hover:not(:disabled) { background: var(--black); color: var(--white); }
 .run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+/* ─── File context chips bar ─── */
+.file-context-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 8px 60px;
+  border-top: var(--rule);
+  background: var(--grey-50);
+}
+.file-context-label {
+  font-size: 8px; font-weight: 700; letter-spacing: 1.5px;
+  color: var(--grey-400); font-family: var(--font-mono);
+  text-transform: uppercase; flex-shrink: 0; margin-right: 2px;
+}
+.file-chip {
+  display: inline-flex; align-items: center; gap: 0;
+  border: 1px solid var(--grey-300); background: var(--white);
+  font-family: var(--font-mono); font-size: 10px;
+  max-width: 220px;
+}
+.file-chip-active {
+  border-color: var(--black);
+}
+.file-chip-type {
+  padding: 3px 6px;
+  background: var(--grey-100); border-right: 1px solid var(--grey-300);
+  font-size: 8px; font-weight: 700; letter-spacing: 0.5px;
+  color: var(--grey-600); text-transform: uppercase; flex-shrink: 0;
+}
+.file-chip-active .file-chip-type {
+  background: var(--black); color: var(--white); border-right-color: var(--black);
+}
+.file-chip-name {
+  padding: 3px 8px; color: var(--black);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 140px;
+}
+.file-chip-remove {
+  padding: 3px 7px; border: none; border-left: 1px solid var(--grey-200);
+  background: none; cursor: pointer; color: var(--grey-400);
+  font-size: 13px; line-height: 1; flex-shrink: 0;
+}
+.file-chip-remove:hover:not(:disabled) { background: var(--red); color: var(--white); border-left-color: var(--red); }
+.file-chip-remove:disabled { opacity: 0.3; cursor: not-allowed; }
+
 /* ─── Floating input ─── */
 .input-wrap {
   display: flex; align-items: flex-end; gap: 12px;
