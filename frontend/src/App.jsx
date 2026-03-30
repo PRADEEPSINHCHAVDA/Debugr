@@ -362,14 +362,15 @@ function FileIconBadge({ type }) {
 
 
 /* ─── HeroState ─── */
-function HeroState({ onUpload, isUploading, inputRef }) {
+function HeroState({ onUpload, isUploading, uploadProgress, inputRef }) {
   const [isDragging, setIsDragging] = useState(false)
   const localRef = useRef(null)
   const ref = inputRef || localRef
 
   const handleDrop = (e) => {
     e.preventDefault(); setIsDragging(false)
-    const f = e.dataTransfer.files[0]; if (f) onUpload(f)
+    const files = Array.from(e.dataTransfer.files).filter(f => f)
+    if (files.length) onUpload(files)
   }
 
   return (
@@ -380,14 +381,34 @@ function HeroState({ onUpload, isUploading, inputRef }) {
       onDrop={handleDrop}
       onClick={() => !isUploading && ref.current?.click()}
     >
-      <input ref={ref} type="file" accept=".pdf,.csv,.log,.txt,.env" style={{display:'none'}}
-        onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = '' }} />
+      <input ref={ref} type="file" accept=".pdf,.csv,.log,.txt,.env" multiple style={{display:'none'}}
+        onChange={e => {
+          const files = Array.from(e.target.files || [])
+          if (files.length) onUpload(files)
+          e.target.value = ''
+        }} />
 
       {isUploading ? (
         <div className="hero-drop-inner">
           <div className="processing-ring" style={{width:40,height:40}} />
-          <p className="hero-drop-title">Indexing file…</p>
-          <p className="hero-drop-sub">Building vector embeddings</p>
+          <p className="hero-drop-title">
+            {uploadProgress.total > 1
+              ? `Indexing file ${uploadProgress.current} of ${uploadProgress.total}…`
+              : 'Indexing file…'}
+          </p>
+          <p className="hero-drop-sub">
+            {uploadProgress.total > 1
+              ? uploadProgress.name
+              : 'Building vector embeddings'}
+          </p>
+          {uploadProgress.total > 1 && (
+            <div className="upload-progress-bar">
+              <div
+                className="upload-progress-fill"
+                style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <div className="hero-drop-inner">
@@ -398,8 +419,8 @@ function HeroState({ onUpload, isUploading, inputRef }) {
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
           </div>
-          <p className="hero-drop-title">{isDragging ? 'Release to upload' : 'Drop your file here'}</p>
-          <p className="hero-drop-sub">PDF · CSV · LOG · TXT · ENV</p>
+          <p className="hero-drop-title">{isDragging ? 'Release to upload' : 'Drop files here'}</p>
+          <p className="hero-drop-sub">PDF · CSV · LOG · TXT · ENV · multiple files supported</p>
           <div className="hero-drop-tags">
             {['Log Analysis','Security Audit','Performance','Root Cause'].map(t => (
               <span key={t} className="hero-drop-tag">{t}</span>
@@ -585,6 +606,7 @@ export default function App() {
   const [followUps, setFollowUps]       = useState([])
   const [validationIssues, setValidationIssues]     = useState([])
   const [truncationWarnings, setTruncationWarnings] = useState([])
+  const [uploadProgress, setUploadProgress]         = useState({ current: 0, total: 0, name: '' })
   const [queryCount, setQueryCount]     = useState(0)
   const [sessionHistory, setSessionHistory] = useState([])
   const [providers, setProviders]           = useState([])
@@ -700,24 +722,54 @@ export default function App() {
     }
   }
 
-  /* Upload */
-  const handleUpload = async (file) => {
+  /* Upload — accepts an array of File objects */
+  const handleUpload = async (files) => {
+    if (!files?.length) return
     setIsUploading(true); setError(null); setMessages([]); setSession(null)
     setInput(''); setFollowUps([]); setAlertBanner(null); setFeedbacks({})
     setQueryCount(0); criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
 
-    try {
-      const form = new FormData(); form.append('file', file)
-      const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form })
-      if (!res.ok) throw new Error((await res.text()) || 'Upload failed.')
-      const data = await res.json()
-      setSession(data)
-      setMessages([{ role: 'assistant', content: `**${data.filename}** indexed. Type: **${data.file_type}** · **${data.chunks}** chunks ready.\n\nAsk me anything about this file.` }])
-      setSessionHistory(prev => [data, ...prev.filter(s => s.session_id !== data.session_id)])
-    } catch (err) {
-      setError(`Upload failed: ${err.message}`)
-    } finally {
-      setIsUploading(false)
+    const uploaded = []
+    const errors   = []
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      setUploadProgress({ current: i + 1, total: files.length, name: file.name })
+      try {
+        const form = new FormData(); form.append('file', file)
+        const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form })
+        if (!res.ok) throw new Error((await res.text()) || 'Upload failed.')
+        const data = await res.json()
+        uploaded.push(data)
+        setSessionHistory(prev => [data, ...prev.filter(s => s.session_id !== data.session_id)])
+      } catch (err) {
+        errors.push(`${file.name}: ${err.message}`)
+      }
+    }
+
+    setUploadProgress({ current: 0, total: 0, name: '' })
+    setIsUploading(false)
+
+    if (!uploaded.length) {
+      setError(`All uploads failed:\n${errors.join('\n')}`)
+      return
+    }
+
+    // Activate the last successfully uploaded file
+    const active = uploaded[uploaded.length - 1]
+    setSession(active)
+
+    if (uploaded.length === 1) {
+      setMessages([{
+        role: 'assistant',
+        content: `**${active.filename}** indexed. Type: **${active.file_type}** · **${active.chunks}** chunks ready.\n\nAsk me anything about this file.`,
+      }])
+    } else {
+      const fileList = uploaded.map(d => `- **${d.filename}** (${d.file_type} · ${d.chunks} chunks)`).join('\n')
+      setMessages([{
+        role: 'assistant',
+        content: `**${uploaded.length} files indexed** and ready for cross-file analysis.\n\n${fileList}\n\n${errors.length ? `⚠ ${errors.length} file(s) failed: ${errors.join(', ')}\n\n` : ''}Active session: **${active.filename}**. Ask anything — all files are in context.`,
+      }])
     }
   }
 
@@ -958,7 +1010,7 @@ export default function App() {
         <div className="messages-area">
           {!session && messages.length === 0 && (
             <div className="hero-center">
-              <HeroState onUpload={handleUpload} isUploading={isUploading} inputRef={uploadInputRef} />
+              <HeroState onUpload={handleUpload} isUploading={isUploading} uploadProgress={uploadProgress} inputRef={uploadInputRef} />
             </div>
           )}
 
