@@ -23,35 +23,44 @@ export default function LandingPage() {
         </button>
       </nav>
 
-      {/* Three.js hero — fills viewport, scroll-animated */}
+      {/* Three.js hero — 300vh scroll space, canvas + overlay both sticky */}
       <div className="hero-wrapper">
-        <HorizonHero />
+        {/* Sticky frame holds canvas + CTA together as user scrolls */}
+        <div className="hero-sticky-frame">
+          <HorizonHero />
 
-        {/* CTA overlay pinned over the canvas */}
-        <div className="hero-cta-overlay">
-          <p className="hero-cta-eyebrow">AI Incident Intelligence for DevOps Teams</p>
-          <p className="hero-cta-sub">
-            Drop a log. Ask a question.<br />
-            Get root cause with cited evidence — in seconds.
-          </p>
-          <div className="hero-cta-btns">
-            <button className="landing-btn-primary landing-btn-lg" onClick={() => navigate('/app')}>
-              Start analysing free →
-            </button>
-            <a className="landing-btn-ghost landing-btn-lg" href="#how">
-              See how it works
-            </a>
-          </div>
-          <div className="hero-stats">
-            <div className="hero-stat"><span className="hero-stat-n">&lt;30s</span><span className="hero-stat-l">Time to root cause</span></div>
-            <div className="hero-stat-div" />
-            <div className="hero-stat"><span className="hero-stat-n">P1–P4</span><span className="hero-stat-l">Auto-severity triage</span></div>
-            <div className="hero-stat-div" />
-            <div className="hero-stat"><span className="hero-stat-n">6+</span><span className="hero-stat-l">File types supported</span></div>
-            <div className="hero-stat-div" />
-            <div className="hero-stat"><span className="hero-stat-n">∞</span><span className="hero-stat-l">Cross-file analysis</span></div>
+          {/* CTA overlay — inside sticky frame so it stays visible */}
+          <div className="hero-cta-overlay">
+            <p className="hero-cta-eyebrow">AI Incident Intelligence for DevOps Teams</p>
+            <h1 className="hero-cta-title">
+              Find root cause<br />in <span>seconds</span>,<br />not hours.
+            </h1>
+            <p className="hero-cta-sub">
+              Drop a log. Ask a question.<br />
+              Get cited evidence — not a wall of text.
+            </p>
+            <div className="hero-cta-btns">
+              <button className="landing-btn-primary landing-btn-lg" onClick={() => navigate('/app')}>
+                Start analysing free →
+              </button>
+              <a className="landing-btn-ghost landing-btn-lg" href="#how">
+                See how it works
+              </a>
+            </div>
+            <div className="hero-stats">
+              <div className="hero-stat"><span className="hero-stat-n">&lt;30s</span><span className="hero-stat-l">Time to root cause</span></div>
+              <div className="hero-stat-div" />
+              <div className="hero-stat"><span className="hero-stat-n">P1–P4</span><span className="hero-stat-l">Auto-severity triage</span></div>
+              <div className="hero-stat-div" />
+              <div className="hero-stat"><span className="hero-stat-n">6+</span><span className="hero-stat-l">File types supported</span></div>
+              <div className="hero-stat-div" />
+              <div className="hero-stat"><span className="hero-stat-n">∞</span><span className="hero-stat-l">Cross-file analysis</span></div>
+            </div>
           </div>
         </div>
+
+        {/* Scroll spacer — provides height for the Three.js camera animation */}
+        <div className="hero-scroll-spacer" />
       </div>
 
       {/* How it works */}

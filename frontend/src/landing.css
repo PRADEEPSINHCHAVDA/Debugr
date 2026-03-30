@@ -80,14 +80,26 @@
 /* ── Hero wrapper ── */
 .hero-wrapper {
   position: relative;
-  height: 300vh; /* allows scroll through the three.js sections */
+}
+/* Sticky frame: holds canvas + CTA overlay together */
+.hero-sticky-frame {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 10;
+}
+/* Extra scroll height so Three.js camera can animate through 3 sections */
+.hero-scroll-spacer {
+  height: 200vh;
+  background: transparent;
 }
 
 /* ── Three.js component classes ── */
 .hero-container {
-  position: sticky !important;
-  top: 0 !important;
-  height: 100vh !important;
+  position: absolute !important;
+  inset: 0 !important;
+  height: 100% !important;
   overflow: hidden !important;
 }
 .hero-canvas {
@@ -117,7 +129,7 @@
 .hero-title {
   font-size: clamp(64px, 12vw, 160px);
   font-weight: 900; letter-spacing: -6px; line-height: 1;
-  color: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.12);
   font-family: inherit; margin: 0;
   overflow: hidden;
 }
@@ -153,22 +165,38 @@
 /* ── CTA overlay on hero ── */
 .hero-cta-overlay {
   position: absolute;
-  bottom: 80px; left: 0; right: 0;
+  inset: 0;
   z-index: 20;
   display: flex; flex-direction: column;
-  align-items: center; text-align: center;
-  padding: 0 24px;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 52px 24px 24px; /* top = nav height */
   pointer-events: auto;
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0) 0%,
+    rgba(0,0,0,0.3) 40%,
+    rgba(0,0,0,0.65) 100%
+  );
 }
 .hero-cta-eyebrow {
   font-size: 10px; font-weight: 700; letter-spacing: 2px;
   text-transform: uppercase; color: #E53E3E;
   font-family: 'JetBrains Mono', monospace;
-  margin-bottom: 12px;
+  margin-bottom: 20px;
 }
+.hero-cta-title {
+  font-size: clamp(36px, 5.5vw, 72px);
+  font-weight: 900; letter-spacing: -3px; line-height: 1.05;
+  color: #ffffff;
+  text-shadow: 0 2px 40px rgba(0,0,0,0.8), 0 0 80px rgba(0,0,0,0.5);
+  margin-bottom: 20px;
+}
+.hero-cta-title span { color: #E53E3E; }
 .hero-cta-sub {
-  font-size: clamp(14px, 2vw, 18px); color: rgba(255,255,255,0.6);
-  line-height: 1.6; margin-bottom: 28px; max-width: 480px;
+  font-size: clamp(13px, 1.5vw, 16px); color: rgba(255,255,255,0.7);
+  line-height: 1.6; margin-bottom: 28px; max-width: 440px;
+  text-shadow: 0 1px 12px rgba(0,0,0,0.8);
 }
 .hero-cta-btns {
   display: flex; align-items: center; gap: 14px;
@@ -176,11 +204,11 @@
 }
 .hero-stats {
   display: flex; align-items: center; gap: 28px;
-  margin-top: 40px;
+  margin-top: 32px;
   padding: 16px 32px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(8px);
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.12);
+  backdrop-filter: blur(12px);
 }
 .hero-stat { text-align: center; }
 .hero-stat-n {
