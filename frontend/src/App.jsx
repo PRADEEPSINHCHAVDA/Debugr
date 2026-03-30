@@ -722,12 +722,17 @@ export default function App() {
     }
   }
 
-  /* Upload — accepts an array of File objects */
-  const handleUpload = async (files) => {
+  /* Upload — accepts an array of File objects.
+     midChat=true: add files to context without resetting the current session/chat. */
+  const handleUpload = async (files, midChat = false) => {
     if (!files?.length) return
-    setIsUploading(true); setError(null); setMessages([]); setSession(null)
-    setInput(''); setFollowUps([]); setAlertBanner(null); setFeedbacks({})
-    setQueryCount(0); criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
+    setIsUploading(true); setError(null)
+
+    if (!midChat) {
+      setMessages([]); setSession(null)
+      setInput(''); setFollowUps([]); setAlertBanner(null); setFeedbacks({})
+      setQueryCount(0); criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
+    }
 
     const uploaded = []
     const errors   = []
@@ -751,25 +756,34 @@ export default function App() {
     setIsUploading(false)
 
     if (!uploaded.length) {
-      setError(`All uploads failed:\n${errors.join('\n')}`)
+      setError(`All uploads failed: ${errors.join(', ')}`)
       return
     }
 
-    // Activate the last successfully uploaded file
-    const active = uploaded[uploaded.length - 1]
-    setSession(active)
-
-    if (uploaded.length === 1) {
-      setMessages([{
+    if (midChat) {
+      // Keep current session active — just notify in chat
+      const names = uploaded.map(d => `**${d.filename}**`).join(', ')
+      const errNote = errors.length ? ` (${errors.length} failed: ${errors.join(', ')})` : ''
+      setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `**${active.filename}** indexed. Type: **${active.file_type}** · **${active.chunks}** chunks ready.\n\nAsk me anything about this file.`,
+        content: `${names} added to context${errNote}. ${uploaded.length > 1 ? 'These files are' : 'This file is'} now available for cross-file analysis in your next question.`,
       }])
     } else {
-      const fileList = uploaded.map(d => `- **${d.filename}** (${d.file_type} · ${d.chunks} chunks)`).join('\n')
-      setMessages([{
-        role: 'assistant',
-        content: `**${uploaded.length} files indexed** and ready for cross-file analysis.\n\n${fileList}\n\n${errors.length ? `⚠ ${errors.length} file(s) failed: ${errors.join(', ')}\n\n` : ''}Active session: **${active.filename}**. Ask anything — all files are in context.`,
-      }])
+      // Fresh session — activate last uploaded file
+      const active = uploaded[uploaded.length - 1]
+      setSession(active)
+      if (uploaded.length === 1) {
+        setMessages([{
+          role: 'assistant',
+          content: `**${active.filename}** indexed. Type: **${active.file_type}** · **${active.chunks}** chunks ready.\n\nAsk me anything about this file.`,
+        }])
+      } else {
+        const fileList = uploaded.map(d => `- **${d.filename}** (${d.file_type} · ${d.chunks} chunks)`).join('\n')
+        setMessages([{
+          role: 'assistant',
+          content: `**${uploaded.length} files indexed** and ready for cross-file analysis.\n\n${fileList}\n\n${errors.length ? `⚠ ${errors.length} failed: ${errors.join(', ')}\n\n` : ''}Ask anything — all files are in context.`,
+        }])
+      }
     }
   }
 
@@ -1061,7 +1075,7 @@ export default function App() {
               style={{ display: 'none' }}
               onChange={e => {
                 const files = Array.from(e.target.files || [])
-                if (files.length) handleUpload(files)
+                if (files.length) handleUpload(files, !!session)
                 e.target.value = ''
               }}
             />
