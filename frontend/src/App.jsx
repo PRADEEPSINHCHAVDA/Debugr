@@ -740,31 +740,29 @@ export default function App() {
   /* Delete a session from history */
   const deleteFromHistory = async (sid) => {
     try { await fetch(`${API_BASE}/session/${sid}`, { method: 'DELETE' }) } catch {}
-    setSessionHistory(prev => {
-      const next = prev.filter(s => s.session_id !== sid)
-      if (session?.session_id === sid) {
-        if (next.length) {
-          // Switch to the next available file, keep conversation
-          setSession(next[0])
-          setMessages(prev2 => [...prev2, {
-            role: 'assistant',
-            content: `**${prev.find(s => s.session_id === sid)?.filename}** removed from context. Active file is now **${next[0].filename}**.`,
-          }])
-        } else {
-          // No files left — reset
-          setSession(null); setMessages([]); setInput(''); setFollowUps([])
-          setAlertBanner(null); setFeedbacks({}); setQueryCount(0)
-          criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
-        }
-      } else if (session) {
-        // Non-active file removed — just note it in chat
-        setMessages(prev2 => [...prev2, {
+
+    const removed = sessionHistory.find(s => s.session_id === sid)
+    const next    = sessionHistory.filter(s => s.session_id !== sid)
+    setSessionHistory(next)
+
+    if (session?.session_id === sid) {
+      if (next.length) {
+        setSession(next[0])
+        setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `**${prev.find(s => s.session_id === sid)?.filename}** removed from context.`,
+          content: `**${removed?.filename}** removed from context. Active file is now **${next[0].filename}**.`,
         }])
+      } else {
+        setSession(null); setMessages([]); setInput(''); setFollowUps([])
+        setAlertBanner(null); setFeedbacks({}); setQueryCount(0)
+        criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
       }
-      return next
-    })
+    } else if (session) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `**${removed?.filename}** removed from context.`,
+      }])
+    }
   }
 
   /* Upload — accepts an array of File objects.
