@@ -815,6 +815,16 @@ option { background: var(--white); }
 }
 .chat-textarea::placeholder { color: var(--grey-400); font-style: italic; }
 
+.attach-btn {
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: none; border: 1px solid var(--grey-300);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--grey-500); transition: none;
+}
+.attach-btn:hover:not(:disabled) { border-color: var(--black); color: var(--black); background: var(--grey-50); }
+.attach-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.attach-btn svg { width: 13px; height: 13px; }
+
 .send-btn {
   width: 34px; height: 34px;
   background: var(--black); border: none;

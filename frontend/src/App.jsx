@@ -1010,7 +1010,7 @@ export default function App() {
         <div className="messages-area">
           {!session && messages.length === 0 && (
             <div className="hero-center">
-              <HeroState onUpload={handleUpload} isUploading={isUploading} uploadProgress={uploadProgress} inputRef={uploadInputRef} />
+              <HeroState onUpload={handleUpload} isUploading={isUploading} uploadProgress={uploadProgress} />
             </div>
           )}
 
@@ -1053,6 +1053,30 @@ export default function App() {
         {/* Input */}
         <div className="input-area">
           <div className={`input-wrap ${!session ? 'disabled' : ''}`}>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept=".pdf,.csv,.log,.txt,.env"
+              multiple
+              style={{ display: 'none' }}
+              onChange={e => {
+                const files = Array.from(e.target.files || [])
+                if (files.length) handleUpload(files)
+                e.target.value = ''
+              }}
+            />
+            <button
+              className="attach-btn"
+              onClick={() => uploadInputRef.current?.click()}
+              disabled={isQuerying || isUploading}
+              aria-label="Add files"
+              title="Add files to context"
+            >
+              {isUploading
+                ? <div className="spinner-sm" />
+                : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              }
+            </button>
             <textarea
               ref={textareaRef}
               value={input}
