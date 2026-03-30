@@ -255,6 +255,45 @@ function MessageBubble({ message, index, feedback, onFeedback, onRetry, onEdit, 
   )
 }
 
+/* ─── TruncationBanner ─── */
+function TruncationBanner({ warnings, onDismiss }) {
+  if (!warnings.length) return null
+  return (
+    <div className="truncation-banner">
+      <div className="truncation-header">
+        <span className="truncation-icon">T</span>
+        <span className="truncation-title">CONTEXT TRUNCATED — {warnings.length} {warnings.length === 1 ? 'ADJUSTMENT' : 'ADJUSTMENTS'}</span>
+        <button className="truncation-dismiss" onClick={onDismiss}>DISMISS</button>
+      </div>
+      <ul className="truncation-list">
+        {warnings.map((w, i) => <li key={i} className="truncation-item">{w}</li>)}
+      </ul>
+    </div>
+  )
+}
+
+/* ─── ValidationBanner ─── */
+function ValidationBanner({ issues, onDismiss }) {
+  if (!issues.length) return null
+  return (
+    <div className="validation-banner">
+      <div className="validation-header">
+        <span className="validation-icon">!</span>
+        <span className="validation-title">CITATION VERIFICATION — {issues.length} UNVERIFIABLE {issues.length === 1 ? 'CITATION' : 'CITATIONS'}</span>
+        <button className="validation-dismiss" onClick={onDismiss}>DISMISS</button>
+      </div>
+      <ul className="validation-list">
+        {issues.map((issue, i) => (
+          <li key={i} className="validation-item">
+            <code className="validation-citation">{issue.citation}</code>
+            <span className="validation-detail">{issue.detail}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /* ─── FollowUpChips ─── */
 function FollowUpChips({ chips, onSelect, disabled }) {
   if (!chips.length) return null
@@ -544,6 +583,8 @@ export default function App() {
   const [feedbacks, setFeedbacks]       = useState({})
   const [alertBanner, setAlertBanner]   = useState(null)
   const [followUps, setFollowUps]       = useState([])
+  const [validationIssues, setValidationIssues]     = useState([])
+  const [truncationWarnings, setTruncationWarnings] = useState([])
   const [queryCount, setQueryCount]     = useState(0)
   const [sessionHistory, setSessionHistory] = useState([])
   const [providers, setProviders]           = useState([])
@@ -646,7 +687,7 @@ export default function App() {
     setSession(s)
     setMessages([{ role: 'assistant', content: `**${s.filename}** resumed. Type: **${s.file_type}** · **${s.chunks}** chunks ready.\n\nAsk me anything about this file.` }])
     setInput(''); setFollowUps([]); setAlertBanner(null); setFeedbacks({})
-    setQueryCount(0); criticalFired.current = false; setError(null)
+    setQueryCount(0); criticalFired.current = false; setError(null); setValidationIssues([]); setTruncationWarnings([])
   }
 
   /* Delete a session from history */
@@ -655,7 +696,7 @@ export default function App() {
     setSessionHistory(prev => prev.filter(s => s.session_id !== sid))
     if (session?.session_id === sid) {
       setSession(null); setMessages([]); setInput(''); setFollowUps([])
-      setAlertBanner(null); setFeedbacks({}); setQueryCount(0); criticalFired.current = false
+      setAlertBanner(null); setFeedbacks({}); setQueryCount(0); criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
     }
   }
 
@@ -663,7 +704,7 @@ export default function App() {
   const handleUpload = async (file) => {
     setIsUploading(true); setError(null); setMessages([]); setSession(null)
     setInput(''); setFollowUps([]); setAlertBanner(null); setFeedbacks({})
-    setQueryCount(0); criticalFired.current = false
+    setQueryCount(0); criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
 
     try {
       const form = new FormData(); form.append('file', file)
@@ -684,7 +725,7 @@ export default function App() {
   const handleQuery = async (forcedQuery) => {
     const query = (forcedQuery ?? input).trim()
     if (!query || !session || isQuerying) return
-    setInput(''); setIsQuerying(true); setError(null); setFollowUps([])
+    setInput(''); setIsQuerying(true); setError(null); setFollowUps([]); setValidationIssues([]); setTruncationWarnings([])
     setMessages(prev => [...prev, { role: 'user', content: query }, { role: 'assistant', content: '...' }])
 
     try {
@@ -728,7 +769,9 @@ export default function App() {
                     const u = [...prev]; u[u.length - 1] = { role: 'assistant', content: agg }; return u
                   })
                 }
-                if (parsed.followups) { setFollowUps(parsed.followups) }
+                if (parsed.followups)   { setFollowUps(parsed.followups) }
+                if (parsed.validation)  { setValidationIssues(parsed.validation.issues || []) }
+                if (parsed.truncation)  { setTruncationWarnings(parsed.truncation) }
               } catch { /* ignore partial SSE */ }
             }
           }
@@ -777,7 +820,7 @@ export default function App() {
       try { await fetch(`${API_BASE}/session/${session.session_id}`, { method: 'DELETE' }) } catch {}
     }
     setSession(null); setMessages([]); setError(null); setInput(''); setIsQuerying(false)
-    setFollowUps([]); setAlertBanner(null); setFeedbacks({}); setQueryCount(0); criticalFired.current = false
+    setFollowUps([]); setAlertBanner(null); setFeedbacks({}); setQueryCount(0); criticalFired.current = false; setValidationIssues([]); setTruncationWarnings([])
   }
 
   const typeClass = session?.file_type?.toLowerCase() || ''
@@ -946,6 +989,9 @@ export default function App() {
           )}
 
           <FollowUpChips chips={followUps} onSelect={q => { if (!isQuerying) handleQuery(q) }} disabled={isQuerying} />
+
+          <TruncationBanner warnings={truncationWarnings} onDismiss={() => setTruncationWarnings([])} />
+          <ValidationBanner issues={validationIssues} onDismiss={() => setValidationIssues([])} />
 
           {alertBanner && <AlertBanner text={alertBanner} onDismiss={() => setAlertBanner(null)} />}
           {error && <div className="error-toast"><span className="error-icon"><Icon.AlertTriangle /></span>{error}</div>}

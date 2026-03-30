@@ -46,6 +46,26 @@ def init_db():
             created_at    TEXT NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS incidents (
+            session_id   TEXT PRIMARY KEY,
+            filename     TEXT NOT NULL,
+            entities     TEXT NOT NULL,
+            raw_response TEXT NOT NULL,
+            extracted_at TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS validation_issues (
+            id           TEXT PRIMARY KEY,
+            session_id   TEXT NOT NULL,
+            query_hash   TEXT NOT NULL,
+            issue_type   TEXT NOT NULL,
+            citation     TEXT NOT NULL,
+            detail       TEXT NOT NULL,
+            created_at   TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -60,9 +80,44 @@ def save_session_db(session_id: str, filename: str, file_type: str, chunks: int,
     conn.close()
 
 
+def save_validation_issues_db(session_id: str, query_hash: str, issues: list):
+    if not issues:
+        return
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        for issue in issues:
+            conn.execute(
+                "INSERT INTO validation_issues VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(uuid.uuid4()), session_id, query_hash,
+                    issue["type"], issue["citation"], issue["detail"],
+                    datetime.now().isoformat(),
+                ),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[validation] DB write failed: {e}")
+
+
+def save_incident_db(session_id: str, filename: str, entities: dict, raw_response: str):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "INSERT OR REPLACE INTO incidents VALUES (?, ?, ?, ?, ?)",
+            (session_id, filename, json.dumps(entities), raw_response[:8000], datetime.now().isoformat()),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[incident_extraction] save failed for {session_id}: {e}")
+
+
 def delete_session_db(session_id: str):
     conn = sqlite3.connect(DB_PATH)
     conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+    conn.execute("DELETE FROM incidents WHERE session_id = ?", (session_id,))
+    conn.execute("DELETE FROM validation_issues WHERE session_id = ?", (session_id,))
     conn.commit()
     conn.close()
 
@@ -199,10 +254,10 @@ PROVIDER_PRESETS: Dict[str, Dict[str, Any]] = {
         "base_url": "https://api.groq.com/openai/v1",
         "env_key": "GROQ_API_KEY",
         "models": [
-            {"id": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B"},
-            {"id": "llama-3.1-8b-instant",    "label": "Llama 3.1 8B (fast)"},
-            {"id": "mixtral-8x7b-32768",       "label": "Mixtral 8x7B"},
-            {"id": "gemma2-9b-it",             "label": "Gemma 2 9B"},
+            {"id": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B",       "context": 128_000},
+            {"id": "llama-3.1-8b-instant",    "label": "Llama 3.1 8B (fast)", "context": 131_000},
+            {"id": "mixtral-8x7b-32768",       "label": "Mixtral 8x7B",        "context":  32_768},
+            {"id": "gemma2-9b-it",             "label": "Gemma 2 9B",          "context":   8_192},
         ],
         "default_model": "llama-3.3-70b-versatile",
     },
@@ -211,9 +266,9 @@ PROVIDER_PRESETS: Dict[str, Dict[str, Any]] = {
         "base_url": "https://api.openai.com/v1",
         "env_key": "OPENAI_API_KEY",
         "models": [
-            {"id": "gpt-4o",       "label": "GPT-4o"},
-            {"id": "gpt-4o-mini",  "label": "GPT-4o Mini"},
-            {"id": "gpt-4-turbo",  "label": "GPT-4 Turbo"},
+            {"id": "gpt-4o",       "label": "GPT-4o",       "context": 128_000},
+            {"id": "gpt-4o-mini",  "label": "GPT-4o Mini",  "context": 128_000},
+            {"id": "gpt-4-turbo",  "label": "GPT-4 Turbo",  "context": 128_000},
         ],
         "default_model": "gpt-4o-mini",
     },
@@ -222,8 +277,8 @@ PROVIDER_PRESETS: Dict[str, Dict[str, Any]] = {
         "base_url": "https://api.together.xyz/v1",
         "env_key": "TOGETHER_API_KEY",
         "models": [
-            {"id": "meta-llama/Llama-3-70b-chat-hf",  "label": "Llama 3 70B"},
-            {"id": "mistralai/Mixtral-8x7B-Instruct-v0.1", "label": "Mixtral 8x7B"},
+            {"id": "meta-llama/Llama-3-70b-chat-hf",          "label": "Llama 3 70B",  "context": 8_192},
+            {"id": "mistralai/Mixtral-8x7B-Instruct-v0.1",    "label": "Mixtral 8x7B", "context": 32_768},
         ],
         "default_model": "meta-llama/Llama-3-70b-chat-hf",
     },
@@ -232,9 +287,9 @@ PROVIDER_PRESETS: Dict[str, Dict[str, Any]] = {
         "base_url": "http://localhost:11434/v1",
         "env_key": None,
         "models": [
-            {"id": "llama3",   "label": "Llama 3"},
-            {"id": "mistral",  "label": "Mistral"},
-            {"id": "phi3",     "label": "Phi-3"},
+            {"id": "llama3",   "label": "Llama 3",   "context": 8_192},
+            {"id": "mistral",  "label": "Mistral",   "context": 32_768},
+            {"id": "phi3",     "label": "Phi-3",     "context": 128_000},
         ],
         "default_model": "llama3",
     },
@@ -401,6 +456,22 @@ OPEN QUESTIONS
 [Flag what additional logs, metrics, or access is needed]
 
 If none: NONE
+
+═══════════════════════════════════════
+##ENTITIES
+═══════════════════════════════════════
+After your analysis, append this block EXACTLY — one JSON object, no prose, no code fences:
+
+##ENTITIES
+{"services":[],"error_types":[],"tables":[],"regions":[],"root_cause_type":null,"severity":null,"duration_minutes":null,"time_of_day":null,"deploy_involved":null,"deploy_component":null,"confidence":null,"file_sources":[]}
+
+Rules for filling it:
+- Use null for any field not present in the files — never guess or invent values
+- severity must be P1/P2/P3/P4 or null
+- confidence must be CONFIRMED/LIKELY/SUSPECTED or null
+- deploy_involved is true/false/null — not a string
+- file_sources: list of filenames from FILES IN CONTEXT
+- All list fields default to [] if nothing found
 """
 
 PERSONA_PROMPTS: Dict[str, str] = {
@@ -549,6 +620,157 @@ def detect_auto_insights(file_type: str, text: str, df: Optional[pd.DataFrame] =
     return build_text_insights(text)
 
 
+# ── Token Budget Management ───────────────────────────────────────────────────
+RESPONSE_RESERVED  = 4_096   # tokens reserved for the model's response
+HISTORY_BUDGET     = 8_000   # max tokens for conversation history
+MESSAGE_BUDGET     = 2_000   # max tokens for current user message + cross-note
+_FALLBACK_CONTEXT  = 8_192   # used when model isn't in presets
+
+
+def estimate_tokens(text: str) -> int:
+    """Fast token estimator: ~4 chars per token for English prose. ±15% accurate."""
+    return max(1, len(text) // 4)
+
+
+def get_model_context_limit(provider: str, model: str) -> int:
+    preset = PROVIDER_PRESETS.get(provider)
+    if preset:
+        for m in preset["models"]:
+            if m["id"] == model:
+                return m["context"]
+    return _FALLBACK_CONTEXT
+
+
+def build_budgeted_context(
+    context_blocks: List[str],
+    history: List[Dict],
+    query: str,
+    system_prompt: str,
+    provider: str,
+    model: str,
+) -> tuple:
+    """
+    Fits context_blocks and history into the model's context window.
+    Priority: system_prompt > history (compacted) > file chunks > message.
+    Returns (context_str, trimmed_history, warnings).
+    """
+    total_limit  = get_model_context_limit(provider, model)
+    fixed_tokens = estimate_tokens(system_prompt) + estimate_tokens(query) + RESPONSE_RESERVED
+
+    available = total_limit - fixed_tokens
+    warnings  = []
+
+    # 1. Fit history — trim to budget before hard-cutting
+    hist_tokens = sum(estimate_tokens(m["content"]) for m in history)
+    if hist_tokens > HISTORY_BUDGET:
+        # Step down gracefully
+        for keep in (8, 6, 4, 2):
+            trimmed = history[-keep:]
+            if sum(estimate_tokens(m["content"]) for m in trimmed) <= HISTORY_BUDGET:
+                warnings.append(f"History trimmed to last {keep} messages to fit context window.")
+                history = trimmed
+                break
+        else:
+            history = history[-2:]
+            warnings.append("History trimmed to last 2 messages — conversation is very long.")
+
+    history_cost = sum(estimate_tokens(m["content"]) for m in history)
+    file_budget  = available - history_cost - MESSAGE_BUDGET
+
+    if file_budget <= 0:
+        # Extreme case: history alone exceeds budget
+        history = history[-2:]
+        history_cost = sum(estimate_tokens(m["content"]) for m in history)
+        file_budget  = available - history_cost - MESSAGE_BUDGET
+        warnings.append("Conversation history is very large — trimmed to 2 messages.")
+
+    # 2. Fit context blocks to remaining file budget
+    kept_blocks:  List[str] = []
+    used_tokens = 0
+    total_blocks = len(context_blocks)
+
+    for block in context_blocks:
+        bt = estimate_tokens(block)
+        if used_tokens + bt > file_budget:
+            # Try partial: keep as many lines of this block as fit
+            lines = block.splitlines()
+            partial: List[str] = []
+            for line in lines:
+                lt = estimate_tokens(line)
+                if used_tokens + lt > file_budget:
+                    break
+                partial.append(line)
+                used_tokens += lt
+            if partial:
+                kept_blocks.append("\n".join(partial))
+                warnings.append(
+                    f"File context truncated: kept {len(partial)}/{len(lines)} lines "
+                    f"of block {len(kept_blocks)}/{total_blocks} "
+                    f"({used_tokens} of ~{estimate_tokens(block)} tokens used)."
+                )
+            else:
+                warnings.append(
+                    f"Block {len(kept_blocks)+1}/{total_blocks} dropped entirely — no budget remaining."
+                )
+            break
+        kept_blocks.append(block)
+        used_tokens += bt
+
+    context_str = "\n\n══════════════════════════════\n\n".join(kept_blocks) if kept_blocks else "No context available."
+    return context_str, history, warnings
+
+
+# ── Citation Validator ────────────────────────────────────────────────────────
+# Citation patterns the CORE_PROMPT enforces
+_CITATION_RE = re.compile(
+    r'\['
+    r'(?:'
+    r'log:[^\]]+|'          # [log:02:14:37Z] or [log:02:14Z]
+    r'tf:[^\]]+|'           # [tf:main.tf:L44]
+    r'k8s:[^\]]+|'          # [k8s:pod/order-svc]
+    r'pipeline:[^\]]+|'     # [pipeline:step3]
+    r'aws:[^\]]+|'          # [aws:us-east-1:i-0a1b2c3d]
+    r'csv:[^\]]+|'          # [csv:row14]
+    r'metric:[^\]]+'        # [metric:p99_latency]
+    r')'
+    r'\]'
+)
+
+# Extracts the verifiable "token" from a citation
+# e.g. [log:02:14:37Z] → "02:14:37Z", [tf:main.tf:L44] → "main.tf"
+def _citation_token(citation: str) -> str:
+    inner = citation[1:-1]  # strip [ ]
+    parts = inner.split(":", 1)
+    return parts[1] if len(parts) > 1 else inner
+
+
+def validate_citations(response_text: str, source_texts: List[str]) -> List[Dict]:
+    """
+    Verify every citation in response_text against the joined source corpus.
+    Returns a list of issue dicts for citations whose token cannot be found verbatim.
+    Does NOT flag missing citations — only verifies cited values that are present.
+    """
+    all_source = "\n".join(source_texts)
+    issues = []
+
+    for match in _CITATION_RE.finditer(response_text):
+        citation = match.group()
+        token = _citation_token(citation)
+
+        # Skip very short or purely numeric tokens — too many false positives
+        if len(token) < 4 or token.isdigit():
+            continue
+
+        if token not in all_source:
+            issues.append({
+                "type":     "unverifiable_citation",
+                "citation": citation,
+                "detail":   f"Token '{token}' not found verbatim in source files.",
+            })
+
+    return issues
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.get("/providers")
 async def list_providers():
@@ -621,6 +843,7 @@ async def upload_file(file: UploadFile = File(...)):
         "filename": filename, "file_type": file_type,
         "chunks": len(chunks), "auto_insights": insights,
         "created_at": created_at,
+        "raw_text": text,
     }
     save_session_db(session_id, filename, file_type, len(chunks), insights)
     return {
@@ -681,8 +904,6 @@ async def query_document(request: QueryRequest):
         except Exception:
             pass
 
-    context = "\n\n══════════════════════════════\n\n".join(context_blocks)
-
     persona = request.persona if request.persona in PERSONA_PROMPTS else "sre"
     system_prompt = PERSONA_PROMPTS[persona]
     cross_note = (
@@ -690,9 +911,8 @@ async def query_document(request: QueryRequest):
         "Cross-reference findings across all files. Label evidence by [FILE: name]."
         if len(context_blocks) > 1 else ""
     )
-    user_prompt = f"Question: {request.query}\n\nDocument context:\n{context}{cross_note}\n\nProvide a focused analysis."
 
-    # Compact history using a lightweight Groq call (avoids billing on expensive models)
+    # Compact history first, then apply token budget
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
         compactor = Groq(api_key=groq_api_key)
@@ -701,16 +921,28 @@ async def query_document(request: QueryRequest):
         compacted = history[-10:]
     state["history"] = compacted
 
+    full_query = f"{request.query}{cross_note}"
+    context, compacted, budget_warnings = build_budgeted_context(
+        context_blocks, compacted, full_query, system_prompt, provider, model
+    )
+    state["history"] = compacted
+
+    user_prompt = f"Question: {request.query}\n\nDocument context:\n{context}{cross_note}\n\nProvide a focused analysis."
+
     def event_stream():
         msgs = [{"role": "system", "content": system_prompt}]
         if compacted:
             msgs.extend(compacted[-8:])
         msgs.append({"role": "user", "content": user_prompt})
 
+        # Emit truncation warnings before the response starts
+        if budget_warnings:
+            yield f"data: {json.dumps({'truncation': budget_warnings})}\n\n"
+
         output = ""
         stream = llm.chat.completions.create(
             model=model, messages=msgs,
-            temperature=0.1, max_tokens=2048, stream=True,
+            temperature=0.1, max_tokens=4096, stream=True,
         )
         for part in stream:
             tok = part.choices[0].delta.content if part.choices else None
@@ -719,8 +951,55 @@ async def query_document(request: QueryRequest):
                 output += tok
                 yield f"data: {json.dumps({'content': tok})}\n\n"
 
+        # ── Entity extraction ──────────────────────────────────────────────────
+        # Strip the ##ENTITIES block before storing in history / showing the user
+        entities_marker = "##ENTITIES"
+        display_output = output.strip()
+        raw_entities_json = None
+        marker_pos = output.find(entities_marker)
+        if marker_pos != -1:
+            display_output = output[:marker_pos].strip()
+            entities_block = output[marker_pos + len(entities_marker):].strip()
+            try:
+                # Grab first {...} JSON object in the block
+                m = re.search(r'\{.*\}', entities_block, re.DOTALL)
+                if m:
+                    raw_entities_json = json.loads(m.group())
+                    raw_entities_json["file_sources"] = [
+                        cross_state["filename"]
+                        for sid in ([request.session_id] + cross_ids)
+                        if (cross_state := sessions.get(sid))
+                    ]
+            except Exception as e:
+                print(f"[incident_extraction] JSON parse failed: {e}")
+
+        if raw_entities_json is not None:
+            save_incident_db(
+                session_id=request.session_id,
+                filename=state["filename"],
+                entities=raw_entities_json,
+                raw_response=display_output,
+            )
+
         history.append({"role": "user", "content": request.query})
-        history.append({"role": "assistant", "content": output.strip()})
+        history.append({"role": "assistant", "content": display_output})
+
+        # ── Citation validation ────────────────────────────────────────────────
+        try:
+            source_texts = [state.get("raw_text", "")]
+            for sid in cross_ids:
+                cs = sessions.get(sid)
+                if cs:
+                    source_texts.append(cs.get("raw_text", ""))
+
+            val_issues = validate_citations(display_output, source_texts)
+
+            if val_issues:
+                query_hash = str(abs(hash(request.query)))[:12]
+                save_validation_issues_db(request.session_id, query_hash, val_issues)
+                yield f"data: {json.dumps({'validation': {'issues': val_issues, 'count': len(val_issues)}})}\n\n"
+        except Exception as e:
+            print(f"[validation] failed: {e}")
 
         # Generate follow-up suggestions (always use Groq for cost efficiency)
         try:
@@ -748,6 +1027,43 @@ async def query_document(request: QueryRequest):
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.get("/incidents")
+async def list_incidents():
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT session_id, filename, entities, extracted_at FROM incidents ORDER BY extracted_at DESC"
+    ).fetchall()
+    conn.close()
+    return [
+        {
+            "session_id": r[0],
+            "filename":   r[1],
+            "entities":   json.loads(r[2]),
+            "extracted_at": r[3],
+        }
+        for r in rows
+    ]
+
+
+@app.get("/incidents/{session_id}")
+async def get_incident(session_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT session_id, filename, entities, raw_response, extracted_at FROM incidents WHERE session_id=?",
+        (session_id,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "No extracted incident for this session.")
+    return {
+        "session_id":   row[0],
+        "filename":     row[1],
+        "entities":     json.loads(row[2]),
+        "raw_response": row[3],
+        "extracted_at": row[4],
+    }
 
 
 @app.delete("/session/{session_id}")
