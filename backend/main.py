@@ -772,6 +772,10 @@ def validate_citations(response_text: str, source_texts: List[str]) -> List[Dict
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 @app.get("/providers")
 async def list_providers():
     result = []

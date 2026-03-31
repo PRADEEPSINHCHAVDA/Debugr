@@ -20,6 +20,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
+    "serve": "^14.2.6",
     "tailwindcss": "^4.2.2",
     "vite": "^5.4.0"
   }
