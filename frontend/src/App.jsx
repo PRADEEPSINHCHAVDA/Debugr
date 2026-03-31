@@ -646,6 +646,12 @@ export default function App() {
   const uploadInputRef = useRef(null)
   const criticalFired  = useRef(false)
 
+  /* Lock body scroll for the app shell layout */
+  useEffect(() => {
+    document.body.classList.add('app-mode')
+    return () => document.body.classList.remove('app-mode')
+  }, [])
+
   /* Load session history + providers + cron jobs on mount */
   useEffect(() => {
     fetch(`${API_BASE}/sessions`).then(r => r.json()).then(d => setSessionHistory(Array.isArray(d) ? d : [])).catch(() => {})

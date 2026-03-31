@@ -60,16 +60,19 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; }
 body {
-  height: 100%;
   background: var(--white);
   color: var(--black);
   font-family: var(--font);
   font-size: 13px;
   line-height: 1.5;
-  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
-#root { height: 100%; }
+/* App shell needs full-height locked layout; landing page needs free scroll */
+body.app-mode {
+  height: 100%;
+  overflow: hidden;
+}
+body.app-mode #root { height: 100%; }
 
 /* ─── App shell ─── */
 .app {
