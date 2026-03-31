@@ -9,7 +9,8 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 
 gsap.registerPlugin(ScrollTrigger);
 
-export const Component = () => {
+// externalProgress: 0–1 value driven by the parent's scroll handler
+export const Component = ({ externalProgress = 0 }) => {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const titleRef = useRef(null);
@@ -19,10 +20,11 @@ export const Component = () => {
 
   const smoothCameraPos = useRef({ x: 0, y: 30, z: 100 });
 
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [currentSection, setCurrentSection] = useState(1);
   const [isReady, setIsReady] = useState(false);
   const totalSections = 2;
+  // Derive display values from externalProgress
+  const scrollProgress = externalProgress;
+  const currentSection = Math.floor(externalProgress * totalSections);
 
   const threeRefs = useRef({
     scene: null,
@@ -303,44 +305,37 @@ export const Component = () => {
     return () => tl.kill();
   }, [isReady]);
 
-  // Scroll handling
+  // Drive camera + parallax from externalProgress (set by parent)
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = Math.min(scrollY / maxScroll, 1);
-      setScrollProgress(progress);
-      const newSection = Math.floor(progress * totalSections);
-      setCurrentSection(newSection);
+    const progress = externalProgress;
+    const newSection = Math.floor(progress * totalSections);
+    const { current: refs } = threeRefs;
+    if (!refs.scene) return;
 
-      const { current: refs } = threeRefs;
-      const totalProg = progress * totalSections;
-      const sectionProg = totalProg % 1;
-      const cameraPositions = [
-        { x: 0, y: 30, z: 300 },
-        { x: 0, y: 40, z: -50 },
-        { x: 0, y: 50, z: -700 },
-      ];
-      const cur  = cameraPositions[newSection]     || cameraPositions[0];
-      const next = cameraPositions[newSection + 1] || cur;
-      refs.targetCameraX = cur.x + (next.x - cur.x) * sectionProg;
-      refs.targetCameraY = cur.y + (next.y - cur.y) * sectionProg;
-      refs.targetCameraZ = cur.z + (next.z - cur.z) * sectionProg;
+    const totalProg = progress * totalSections;
+    const sectionProg = totalProg % 1;
+    const cameraPositions = [
+      { x: 0, y: 30, z: 300 },
+      { x: 0, y: 40, z: -50 },
+      { x: 0, y: 50, z: -700 },
+    ];
+    const cur  = cameraPositions[newSection]     || cameraPositions[0];
+    const next = cameraPositions[newSection + 1] || cur;
+    refs.targetCameraX = cur.x + (next.x - cur.x) * sectionProg;
+    refs.targetCameraY = cur.y + (next.y - cur.y) * sectionProg;
+    refs.targetCameraZ = cur.z + (next.z - cur.z) * sectionProg;
 
-      refs.mountains.forEach((mountain, i) => {
-        const speed = 1 + i * 0.9;
-        const targetZ = mountain.userData.baseZ + scrollY * speed * 0.5;
-        if (refs.nebula) refs.nebula.position.z = (targetZ + progress * speed * 0.01) - 100;
-        mountain.userData.targetZ = targetZ;
-        if (progress > 0.7) mountain.position.z = 600000;
-        if (progress < 0.7) mountain.position.z = refs.locations[i];
-      });
-      if (refs.nebula && refs.mountains[3]) refs.nebula.position.z = refs.mountains[3].position.z;
-    };
-    window.addEventListener('scroll', handleScroll);
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [totalSections]);
+    // Fake scrollY from progress over 200vh hero scroll space
+    const fakeScrollY = progress * window.innerHeight * 2;
+    refs.mountains.forEach((mountain, i) => {
+      const speed = 1 + i * 0.9;
+      const targetZ = mountain.userData.baseZ + fakeScrollY * speed * 0.5;
+      if (refs.nebula) refs.nebula.position.z = (targetZ + progress * speed * 0.01) - 100;
+      if (progress > 0.7) mountain.position.z = 600000;
+      else if (refs.locations) mountain.position.z = refs.locations[i];
+    });
+    if (refs.nebula && refs.mountains[3]) refs.nebula.position.z = refs.mountains[3].position.z;
+  }, [externalProgress, totalSections]);
 
   const sectionData = [
     { title: 'HORIZON',  line1: 'Where vision meets reality,',                    line2: 'we shape the future of tomorrow' },

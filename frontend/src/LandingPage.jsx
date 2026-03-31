@@ -1,10 +1,29 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Component as HorizonHero } from './components/ui/horizon-hero-section'
 import './landing.css'
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const heroWrapperRef = useRef(null)
+  const [heroProgress, setHeroProgress] = useState(0)
+
+  // Track scroll progress ONLY within the hero zone (the 300vh sticky block)
+  useEffect(() => {
+    const onScroll = () => {
+      const el = heroWrapperRef.current
+      if (!el) return
+      const { top, height } = el.getBoundingClientRect()
+      // top goes from 0 → -height as we scroll through
+      const scrolled = -top                      // 0 at top of hero, height at bottom
+      const scrollable = height - window.innerHeight  // scrollable distance inside hero
+      const progress = Math.min(Math.max(scrolled / scrollable, 0), 1)
+      setHeroProgress(progress)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
     <div className="landing-root">
@@ -24,10 +43,10 @@ export default function LandingPage() {
       </nav>
 
       {/* Three.js hero — 300vh scroll space, canvas + overlay both sticky */}
-      <div className="hero-wrapper">
+      <div className="hero-wrapper" ref={heroWrapperRef}>
         {/* Sticky frame holds canvas + CTA together as user scrolls */}
         <div className="hero-sticky-frame">
-          <HorizonHero />
+          <HorizonHero externalProgress={heroProgress} />
 
           {/* CTA overlay — inside sticky frame so it stays visible */}
           <div className="hero-cta-overlay">

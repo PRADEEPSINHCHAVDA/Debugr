@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -619,6 +620,7 @@ function SessionHistory({ history, currentId, onResume, onDelete }) {
 
 /* ─── App ─── */
 export default function App() {
+  const navigate = useNavigate()
   const [session, setSession]           = useState(null)
   const [messages, setMessages]         = useState([])
   const [isUploading, setIsUploading]   = useState(false)
@@ -1034,6 +1036,9 @@ export default function App() {
         {/* Header */}
         <div className="chat-header">
           <div className="header-left">
+            <button className="home-btn" onClick={() => navigate('/')} title="Back to home">
+              ←
+            </button>
             <div className="header-status">
               <div className={`status-indicator ${session ? 'online' : 'offline'}`} />
               <span className="header-filename">
