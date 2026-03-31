@@ -1,31 +1,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,700;0,900;1,300&display=swap');
 
-/* ─── Swiss Grid Design Tokens ─── */
+/* ─── Design Tokens — dark theme matching landing page ─── */
 :root {
-  --white:   #ffffff;
-  --black:   #111111;
-  --grey-50: #fafafa;
-  --grey-100:#f4f4f4;
-  --grey-200:#e8e8e8;
-  --grey-300:#d0d0d0;
-  --grey-400:#a0a0a0;
-  --grey-500:#707070;
-  --grey-600:#444444;
+  /* Surfaces: dark → light */
+  --white:   #0A0A0A;    /* primary background */
+  --black:   #F0F0F0;    /* primary text / inverted active state */
+  --grey-50: #111111;    /* sidebar / elevated surface */
+  --grey-100:#181818;    /* subtle surface */
+  --grey-200:#232323;    /* borders / dividers */
+  --grey-300:#333333;    /* stronger borders */
+  --grey-400:#555555;    /* disabled / very muted */
+  --grey-500:#777777;    /* secondary text */
+  --grey-600:#AAAAAA;    /* tertiary text */
 
   --red:     #E53E3E;
-  --red-bg:  rgba(229, 62, 62, 0.06);
+  --red-bg:  rgba(229, 62, 62, 0.12);
 
-  --green:   #16a34a;
-  --amber:   #b45309;
+  --green:   #22c55e;
+  --amber:   #f59e0b;
 
   --font: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 
   --sidebar-w: 200px;
-  --border: 1px solid var(--black);
-  --rule: 1px solid var(--grey-200);
+  --border: 1px solid var(--grey-200);
+  --rule:   1px solid var(--grey-200);
 
-  /* keep these aliases so existing component refs still work */
+  /* aliases */
   --text-primary:   var(--black);
   --text-secondary: var(--grey-600);
   --text-muted:     var(--grey-500);
@@ -34,20 +35,20 @@
   --bg-glass:       var(--grey-50);
   --border-default: var(--grey-200);
   --border-subtle:  var(--grey-200);
-  --border-strong:  var(--black);
+  --border-strong:  var(--grey-300);
   --border-accent:  var(--red);
-  --cyan:           var(--black);
-  --cyan-bright:    var(--black);
+  --cyan:           var(--grey-600);
+  --cyan-bright:    var(--grey-600);
   --cyan-dim:       var(--grey-100);
   --emerald:        var(--green);
-  --emerald-dim:    rgba(22,163,74,0.08);
+  --emerald-dim:    rgba(34,197,94,0.1);
   --violet:         var(--grey-600);
   --violet-dim:     var(--grey-100);
   --red-dim:        var(--red-bg);
   --radius-xs: 0; --radius-sm: 0; --radius-md: 0; --radius-lg: 0; --radius-xl: 0;
-  --shadow-sm: 4px 4px 0 var(--black);
-  --shadow-md: 6px 6px 0 var(--black);
-  --shadow-lg: 8px 8px 0 var(--black);
+  --shadow-sm: 4px 4px 0 var(--grey-300);
+  --shadow-md: 6px 6px 0 var(--grey-300);
+  --shadow-lg: 8px 8px 0 var(--grey-300);
   --shadow-glow-cyan: none;
   --shadow-glow-violet: none;
   --transition-fast: 80ms linear;
@@ -90,7 +91,7 @@ body.app-mode #root { height: 100%; }
   min-width: var(--sidebar-w);
   display: flex;
   flex-direction: column;
-  background: var(--white);
+  background: var(--grey-50);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border-right: var(--border);
@@ -119,7 +120,7 @@ body.app-mode #root { height: 100%; }
   color: var(--black);
   background: none;
   -webkit-background-clip: unset;
-  -webkit-text-fill-color: var(--black);
+  -webkit-text-fill-color: var(--black); /* inherits updated --black = #F0F0F0 */
   background-clip: unset;
   text-transform: uppercase;
 }
@@ -432,7 +433,7 @@ body.app-mode #root { height: 100%; }
 .hero-drop.dragging {
   border-color: var(--red);
   border-style: solid;
-  background: #fff5f5;
+  background: rgba(229, 62, 62, 0.1);
 }
 .hero-drop.dragging .hero-drop-title { color: var(--red); }
 .hero-drop.uploading { pointer-events: none; border-style: solid; border-color: var(--black); }
@@ -685,15 +686,15 @@ body.app-mode #root { height: 100%; }
 /* ─── Truncation Banner ─── */
 .truncation-banner {
   margin-top: 12px;
-  border: 1px solid #3B82F6;
-  background: #EFF6FF;
+  border: 1px solid rgba(96,165,250,0.35);
+  background: rgba(59,130,246,0.08);
   animation: swiss-enter 0.2s linear both;
 }
 .truncation-header {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px;
-  background: #DBEAFE;
-  border-bottom: 1px solid #3B82F6;
+  background: rgba(59,130,246,0.12);
+  border-bottom: 1px solid rgba(96,165,250,0.25);
 }
 .truncation-icon {
   display: inline-flex; align-items: center; justify-content: center;
@@ -704,12 +705,12 @@ body.app-mode #root { height: 100%; }
 }
 .truncation-title {
   font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
-  text-transform: uppercase; color: #1E40AF; flex: 1;
+  text-transform: uppercase; color: #60a5fa; flex: 1;
 }
 .truncation-dismiss {
   font-size: 8px; font-weight: 700; letter-spacing: 1px;
-  text-transform: uppercase; color: #1E40AF;
-  background: none; border: 1px solid #3B82F6; padding: 2px 6px;
+  text-transform: uppercase; color: #60a5fa;
+  background: none; border: 1px solid rgba(96,165,250,0.4); padding: 2px 6px;
   cursor: pointer; font-family: var(--font-mono);
 }
 .truncation-dismiss:hover { background: #3B82F6; color: #fff; }
@@ -718,23 +719,23 @@ body.app-mode #root { height: 100%; }
   display: flex; flex-direction: column; gap: 4px;
 }
 .truncation-item {
-  font-size: 10px; font-family: var(--font-mono); color: #1E3A8A;
+  font-size: 10px; font-family: var(--font-mono); color: #93c5fd;
   padding-left: 12px; position: relative;
 }
-.truncation-item::before { content: '—'; position: absolute; left: 0; color: #3B82F6; }
+.truncation-item::before { content: '—'; position: absolute; left: 0; color: #60a5fa; }
 
 /* ─── Validation Banner ─── */
 .validation-banner {
   margin-top: 12px;
-  border: 1px solid #D97706;
-  background: #FFFBEB;
+  border: 1px solid rgba(245,158,11,0.35);
+  background: rgba(245,158,11,0.08);
   animation: swiss-enter 0.2s linear both;
 }
 .validation-header {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px;
-  background: #FEF3C7;
-  border-bottom: 1px solid #D97706;
+  background: rgba(245,158,11,0.12);
+  border-bottom: 1px solid rgba(245,158,11,0.25);
 }
 .validation-icon {
   display: inline-flex; align-items: center; justify-content: center;
@@ -745,12 +746,12 @@ body.app-mode #root { height: 100%; }
 }
 .validation-title {
   font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
-  text-transform: uppercase; color: #92400E; flex: 1;
+  text-transform: uppercase; color: #fbbf24; flex: 1;
 }
 .validation-dismiss {
   font-size: 8px; font-weight: 700; letter-spacing: 1px;
-  text-transform: uppercase; color: #92400E;
-  background: none; border: 1px solid #D97706; padding: 2px 6px;
+  text-transform: uppercase; color: #fbbf24;
+  background: none; border: 1px solid rgba(245,158,11,0.4); padding: 2px 6px;
   cursor: pointer; font-family: var(--font-mono);
 }
 .validation-dismiss:hover { background: #D97706; color: #fff; }
@@ -763,11 +764,11 @@ body.app-mode #root { height: 100%; }
   font-size: 11px; font-family: var(--font-mono);
 }
 .validation-citation {
-  background: #FDE68A; color: #92400E;
+  background: rgba(245,158,11,0.2); color: #fbbf24;
   padding: 1px 5px; font-size: 10px; font-weight: 700;
   flex-shrink: 0; white-space: nowrap;
 }
-.validation-detail { color: #78350F; font-size: 10px; }
+.validation-detail { color: #fcd34d; font-size: 10px; }
 
 /* ─── Error toast ─── */
 .error-toast {
@@ -798,7 +799,7 @@ body.app-mode #root { height: 100%; }
 }
 .template-select:focus { outline: 2px solid var(--black); outline-offset: -2px; }
 .template-select:disabled { opacity: 0.4; cursor: not-allowed; }
-option { background: var(--white); }
+option { background: var(--grey-50); color: var(--black); }
 
 .run-btn {
   display: flex; align-items: center; gap: 6px;
@@ -904,7 +905,7 @@ option { background: var(--white); }
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--grey-300); }
+::-webkit-scrollbar-thumb { background: var(--grey-300); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--grey-400); }
 
 /* ─── Header action buttons ─── */
@@ -928,7 +929,7 @@ option { background: var(--white); }
   appearance: none; -webkit-appearance: none;
 }
 .persona-select:focus { outline: 2px solid var(--red); outline-offset: -2px; }
-option { background: var(--white); }
+option { background: var(--grey-50); color: var(--black); }
 
 /* ─── Skills panel ─── */
 .skills-section { padding: 10px 14px; border-bottom: var(--rule); }
