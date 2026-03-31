@@ -6,4 +6,4 @@ buildCommand = "npm install && npm run build"
 nixPkgs = ["nodejs_20"]
 
 [deploy]
-startCommand = "npx serve dist --listen $PORT --single"
+startCommand = "npx serve dist -l $PORT -s"
