@@ -2,5 +2,8 @@
 builder = "nixpacks"
 buildCommand = "npm install && npm run build"
 
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["nodejs_20"]
+
 [deploy]
 startCommand = "npx serve dist --listen $PORT --single"
