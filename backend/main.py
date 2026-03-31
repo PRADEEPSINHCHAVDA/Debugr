@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from groq import Groq
 from openai import OpenAI
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
+from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
 
 app = FastAPI(title="Debugr AI — RAG DevOps Assistant")
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
@@ -31,7 +31,7 @@ DB_PATH = DATA_DIR / "sessions.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
 
 chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+embedder = ONNXMiniLM_L6_V2()
 sessions: Dict[str, Dict[str, Any]] = {}
 
 # ── SQLite helpers ────────────────────────────────────────────────────────────
@@ -201,7 +201,7 @@ def run_cron_job(job: Dict):
         update_cron_result(job["id"], "GROQ_API_KEY not set — skipped.")
         return
     try:
-        q_emb = embedder.encode([job["query"]], convert_to_numpy=True).tolist()[0]
+        q_emb = embedder([job["query"]])[0]
         n = max(1, min(5, collection.count()))
         results = collection.query(query_embeddings=[q_emb], n_results=n)
         doc_chunks = results.get("documents", [[]])[0] or ["No relevant context."]
@@ -835,7 +835,7 @@ async def upload_file(file: UploadFile = File(...)):
 
     session_id = str(uuid.uuid4())
     collection = chroma_client.create_collection(name=session_id)
-    embeddings = embedder.encode(chunks, convert_to_numpy=True).tolist()
+    embeddings = embedder(chunks)
     collection.add(
         documents=chunks, embeddings=embeddings,
         ids=[f"{session_id}-{i}" for i in range(len(chunks))],
@@ -882,7 +882,7 @@ async def query_document(request: QueryRequest):
 
     llm = get_openai_client(provider)
 
-    q_emb = embedder.encode([request.query], convert_to_numpy=True).tolist()[0]
+    q_emb = embedder([request.query])[0]
     n = max(1, min(5, collection.count()))
     results = collection.query(query_embeddings=[q_emb], n_results=n)
     doc_chunks = results.get("documents", [[]])[0] or ["No relevant context found."]
