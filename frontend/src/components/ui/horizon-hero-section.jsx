@@ -43,7 +43,7 @@ export const Component = ({ externalProgress = 0 }) => {
       const { current: refs } = threeRefs;
 
       refs.scene = new THREE.Scene();
-      refs.scene.fog = new THREE.FogExp2(0x000000, 0.00025);
+      refs.scene.fog = new THREE.FogExp2(0x020000, 0.00025);
 
       refs.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
       refs.camera.position.z = 100;
@@ -89,9 +89,9 @@ export const Component = ({ externalProgress = 0 }) => {
 
           const color = new THREE.Color();
           const c = Math.random();
-          if (c < 0.7)      color.setHSL(0, 0, 0.8 + Math.random() * 0.2);
-          else if (c < 0.9) color.setHSL(0.08, 0.5, 0.8);
-          else              color.setHSL(0.6, 0.5, 0.8);
+          if (c < 0.65)     color.setHSL(0, 0, 0.8 + Math.random() * 0.2);      // white
+          else if (c < 0.85) color.setHSL(0.05, 0.7, 0.75);                      // warm amber
+          else              color.setHSL(0.0, 0.8, 0.6);                          // red
 
           colors[j * 3] = color.r; colors[j * 3 + 1] = color.g; colors[j * 3 + 2] = color.b;
           sizes[j] = Math.random() * 2 + 0.5;
@@ -138,9 +138,9 @@ export const Component = ({ externalProgress = 0 }) => {
       const material = new THREE.ShaderMaterial({
         uniforms: {
           time: { value: 0 },
-          color1: { value: new THREE.Color(0x0033ff) },
-          color2: { value: new THREE.Color(0xff0066) },
-          opacity: { value: 0.3 },
+          color1: { value: new THREE.Color(0x3d0000) },
+          color2: { value: new THREE.Color(0xff2200) },
+          opacity: { value: 0.25 },
         },
         vertexShader: `
           varying vec2 vUv; varying float vElevation; uniform float time;
@@ -171,10 +171,10 @@ export const Component = ({ externalProgress = 0 }) => {
     const createMountains = () => {
       const { current: refs } = threeRefs;
       const layers = [
-        { distance: -50,  height: 60,  color: 0x1a1a2e, opacity: 1   },
-        { distance: -100, height: 80,  color: 0x16213e, opacity: 0.8  },
-        { distance: -150, height: 100, color: 0x0f3460, opacity: 0.6  },
-        { distance: -200, height: 120, color: 0x0a4668, opacity: 0.4  },
+        { distance: -50,  height: 60,  color: 0x0d0000, opacity: 1   },
+        { distance: -100, height: 80,  color: 0x150000, opacity: 0.85 },
+        { distance: -150, height: 100, color: 0x1e0000, opacity: 0.65 },
+        { distance: -200, height: 120, color: 0x2a0000, opacity: 0.45 },
       ];
       layers.forEach((layer, index) => {
         const points = [];
@@ -215,7 +215,7 @@ export const Component = ({ externalProgress = 0 }) => {
           varying vec3 vNormal; varying vec3 vPosition; uniform float time;
           void main() {
             float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-            vec3 atmosphere = vec3(0.3, 0.6, 1.0) * intensity;
+            vec3 atmosphere = vec3(0.9, 0.15, 0.05) * intensity;
             float pulse = sin(time * 2.0) * 0.1 + 0.9;
             atmosphere *= pulse;
             gl_FragColor = vec4(atmosphere, intensity * 0.25);
@@ -347,48 +347,12 @@ export const Component = ({ externalProgress = 0 }) => {
     <div ref={containerRef} className="hero-container cosmos-style">
       <canvas ref={canvasRef} className="hero-canvas" />
 
-      {/* Side menu */}
-      <div ref={menuRef} className="side-menu" style={{ visibility: 'hidden' }}>
-        <div className="menu-icon">
-          <span></span><span></span><span></span>
-        </div>
-        <div className="vertical-text">DEBUGR</div>
-      </div>
+      <div ref={menuRef} style={{ display: 'none' }} />
 
-      {/* Main hero content */}
-      <div className="hero-content cosmos-content">
-        <h1 ref={titleRef} className="hero-title" style={{ visibility: 'hidden' }}>
-          {['D','E','B','U','G','R'].map((c, i) => <span key={i} className="title-char">{c}</span>)}
-        </h1>
-        <div ref={subtitleRef} className="hero-subtitle cosmos-subtitle" style={{ visibility: 'hidden' }}>
-          <p className="subtitle-line">AI incident intelligence.</p>
-          <p className="subtitle-line">Root cause in seconds, not hours.</p>
-        </div>
-      </div>
-
-      {/* Scroll progress */}
-      <div ref={scrollProgressRef} className="scroll-progress" style={{ visibility: 'hidden' }}>
-        <div className="scroll-text">SCROLL</div>
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${scrollProgress * 100}%` }} />
-        </div>
-        <div className="section-counter">
-          {String(currentSection).padStart(2, '0')} / {String(totalSections).padStart(2, '0')}
-        </div>
-      </div>
-
-      {/* Additional scroll sections */}
-      <div className="scroll-sections">
-        {[...Array(2)].map((_, i) => (
-          <section key={i} className="content-section">
-            <h1 className="hero-title">{sectionData[i + 1].title}</h1>
-            <div className="hero-subtitle cosmos-subtitle">
-              <p className="subtitle-line">{sectionData[i + 1].line1}</p>
-              <p className="subtitle-line">{sectionData[i + 1].line2}</p>
-            </div>
-          </section>
-        ))}
-      </div>
+      {/* Internal text elements hidden — CTA overlay in LandingPage replaces them */}
+      <div ref={titleRef}       style={{ display: 'none' }} />
+      <div ref={subtitleRef}    style={{ display: 'none' }} />
+      <div ref={scrollProgressRef} style={{ display: 'none' }} />
     </div>
   );
 };
