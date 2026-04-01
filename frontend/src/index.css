@@ -412,8 +412,8 @@ body.app-mode #root { height: 100%; }
   justify-content: center;
   /* Swiss grid background */
   background-image:
-    linear-gradient(var(--grey-100) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grey-100) 1px, transparent 1px);
+    linear-gradient(rgba(229,62,62,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(229,62,62,0.04) 1px, transparent 1px);
   background-size: 32px 32px;
   margin: -40px -60px -24px;
 }
@@ -425,11 +425,16 @@ body.app-mode #root { height: 100%; }
   height: 280px;
   background: var(--white);
   border: 2px dashed var(--grey-300);
+  box-shadow: none;
   cursor: pointer;
-  transition: border-color 80ms linear, background 80ms linear;
+  transition: border-color 150ms, background 150ms, box-shadow 150ms;
   animation: swiss-enter 0.3s linear both;
 }
-.hero-drop:hover { border-color: var(--black); background: var(--grey-50); }
+.hero-drop:hover {
+  border-color: var(--red);
+  border-style: dashed;
+  box-shadow: 0 0 0 1px rgba(229,62,62,0.15), inset 0 0 40px rgba(229,62,62,0.04);
+}
 .hero-drop.dragging {
   border-color: var(--red);
   border-style: solid;
@@ -535,16 +540,26 @@ body.app-mode #root { height: 100%; }
   color: var(--grey-600);
 }
 .ai-bubble { color: var(--black); }
+.message-row:has(.ai-bubble) {
+  border-left: 2px solid var(--red);
+  padding-left: 16px;
+  margin-left: -16px;
+}
 .ai-bubble:hover { border: none !important; }
 
 /* ─── Typing indicator ─── */
-.typing-indicator { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
-.typing-dot {
-  width: 4px; height: 4px; background: var(--black);
-  animation: swiss-blink 1s step-end infinite;
+@keyframes typingPulse {
+  0%, 100% { opacity: 0.2; transform: scaleY(0.6); }
+  50%       { opacity: 1;   transform: scaleY(1.2); }
 }
-.typing-dot:nth-child(2) { animation-delay: 0.33s; background: var(--grey-500); }
-.typing-dot:nth-child(3) { animation-delay: 0.66s; background: var(--grey-400); }
+.typing-indicator { display: flex; align-items: center; gap: 3px; padding: 4px 0; height: 20px; }
+.typing-dot {
+  width: 3px; height: 14px;
+  background: var(--red);
+  animation: typingPulse 0.9s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; background: rgba(229,62,62,0.6); }
+.typing-dot:nth-child(3) { animation-delay: 0.3s;  background: rgba(229,62,62,0.3); }
 
 /* ─── Message footer ─── */
 .message-footer {
@@ -980,13 +995,13 @@ option { background: var(--grey-50); color: var(--black); }
 }
 
 /* ─── Code blocks ─── */
-.code-block-wrap { overflow: hidden; border: var(--border); margin: 10px 0; background: var(--grey-50); }
-.code-block-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px; background: var(--grey-100); border-bottom: 1px solid var(--grey-200); }
-.code-lang { font-size: 9px; font-family: var(--font-mono); color: var(--grey-500); letter-spacing: 0.5px; text-transform: uppercase; }
+.code-block-wrap { overflow: hidden; border: var(--border); margin: 10px 0; background: #0D0D0D; border-color: var(--grey-300); }
+.code-block-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px; background: #161616; border-bottom: 1px solid var(--grey-200); }
+.code-lang { font-size: 9px; font-family: var(--font-mono); color: #E53E3E; letter-spacing: 0.5px; text-transform: uppercase; }
 .copy-btn { font-size: 9px; font-family: var(--font-mono); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; background: var(--white); border: var(--border); color: var(--black); cursor: pointer; transition: none; }
 .copy-btn:hover { background: var(--black); color: var(--white); }
 .copy-btn.copied { background: var(--green); border-color: var(--green); color: var(--white); }
-.code-block { margin: 0; padding: 14px; overflow-x: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; color: var(--black); scrollbar-width: thin; scrollbar-color: var(--grey-300) transparent; }
+.code-block { margin: 0; padding: 14px; overflow-x: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; color: #D4D4D4; background: #0D0D0D; scrollbar-width: thin; scrollbar-color: var(--grey-300) transparent; }
 
 /* ─── Follow-up chips ─── */
 .followup-section { padding: 16px 0 0; }

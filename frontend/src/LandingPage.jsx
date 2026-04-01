@@ -14,6 +14,18 @@ export default function LandingPage() {
     setTimeout(() => navigate('/app'), 400)
   }
 
+  // Scroll reveal — add 'visible' class when elements enter viewport
+  useEffect(() => {
+    const els = document.querySelectorAll('.reveal')
+    if (!els.length) return
+    const io = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible') }),
+      { threshold: 0.12 }
+    )
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+
   // Track scroll progress ONLY within the hero zone (the 300vh sticky block)
   useEffect(() => {
     const onScroll = () => {
@@ -90,17 +102,17 @@ export default function LandingPage() {
 
       {/* How it works */}
       <section id="how" className="land-section land-section-light">
-        <div className="land-label">How it works</div>
-        <h2 className="land-title">Three steps.<br />One answer.</h2>
-        <p className="land-sub">No dashboards to configure. Drop a file, ask a question, get a cited answer.</p>
+        <div className="land-label reveal">How it works</div>
+        <h2 className="land-title reveal reveal-d1">Three steps.<br />One answer.</h2>
+        <p className="land-sub reveal reveal-d2">No dashboards to configure. Drop a file, ask a question, get a cited answer.</p>
         <div className="land-how-grid">
           {[
             { n:'01', title:'Upload any file', desc:'Logs, CSVs, Terraform plans, Kubernetes manifests, PDFs, CI/CD output. Single file or an entire incident\'s worth.', badge:'PDF · CSV · LOG · TXT · ENV' },
             { n:'02', title:'Ask in plain English', desc:'"What caused the spike at 02:14?" Debugr pulls the most relevant chunks from every file in context using semantic search.', badge:'Semantic RAG · Cross-file' },
             { n:'03', title:'Get a cited answer', desc:'Severity P1–P4, root cause with confidence levels, timeline, blast radius, recommendations — every claim cited to your file.', badge:'CONFIRMED · LIKELY · SUSPECTED' },
             { n:'04', title:'Iterate mid-chat', desc:'Add files mid-conversation. Edit your question. Retry. Every new file is auto-included in cross-file analysis.', badge:'Multi-file · Incident memory' },
-          ].map(s => (
-            <div key={s.n} className="land-how-card">
+          ].map((s, index) => (
+            <div key={s.n} className={`land-how-card reveal reveal-d${(index % 4) + 1}`}>
               <div className="land-step-n">{s.n}</div>
               <div className="land-step-title">{s.title}</div>
               <div className="land-step-desc">{s.desc}</div>
@@ -112,8 +124,8 @@ export default function LandingPage() {
 
       {/* Features */}
       <section id="features" className="land-section land-section-dark">
-        <div className="land-label" style={{color:'#E53E3E'}}>Capabilities</div>
-        <h2 className="land-title" style={{color:'#fff'}}>Built for the<br />3am incident.</h2>
+        <div className="land-label reveal" style={{color:'#E53E3E'}}>Capabilities</div>
+        <h2 className="land-title reveal reveal-d1" style={{color:'#fff'}}>Built for the<br />3am incident.</h2>
         <div className="land-feat-grid">
           {[
             { title:'Auto-triage on upload',      desc:'Counts critical/error/warning/memory/CPU signals the moment a file lands. No query needed.', live:true },
@@ -125,8 +137,8 @@ export default function LandingPage() {
             { title:'Scheduled scans',             desc:'Hourly error checks, daily cost anomaly scans, weekly drift detection. Results in your session.', live:true },
             { title:'Multi-LLM support',           desc:'Groq, OpenAI, Together AI, or Ollama locally. Bring your own key. Switch model per query.', live:true },
             { title:'Incident memory',             desc:'Pattern match across all past incidents. "Has this service crashed before?" will have an answer.', live:false },
-          ].map(f => (
-            <div key={f.title} className="land-feat-card">
+          ].map((f, index) => (
+            <div key={f.title} className={`land-feat-card reveal reveal-d${(index % 3) + 1}`}>
               <div className="land-feat-title">{f.title}</div>
               <div className="land-feat-desc">{f.desc}</div>
               <span className={`land-feat-tag ${f.live ? 'live' : ''}`}>{f.live ? 'LIVE' : 'COMING SOON'}</span>
@@ -137,8 +149,8 @@ export default function LandingPage() {
 
       {/* Integrations */}
       <section id="integrations" className="land-section land-section-light">
-        <div className="land-label">Integrations</div>
-        <h2 className="land-title">Where your team<br />already works.</h2>
+        <div className="land-label reveal">Integrations</div>
+        <h2 className="land-title reveal reveal-d1">Where your team<br />already works.</h2>
         <div className="land-int-grid">
           {[
             { name:'Groq',        desc:'Ultra-fast Llama 3.3 70B inference. Default provider.',         status:'live' },
@@ -149,8 +161,8 @@ export default function LandingPage() {
             { name:'Slack',       desc:'/debugr command. Paste a log, get root cause without leaving Slack.', status:'soon' },
             { name:'Jira / Linear', desc:'Auto-create tickets from incidents with pre-filled root cause.', status:'soon' },
             { name:'kubectl',     desc:'debugr kubectl logs pod/order-svc — direct terminal integration.', status:'planned' },
-          ].map(i => (
-            <div key={i.name} className={`land-int-card ${i.status !== 'live' ? 'land-int-muted' : ''}`}>
+          ].map((i, index) => (
+            <div key={i.name} className={`land-int-card reveal reveal-d${(index % 4) + 1} ${i.status !== 'live' ? 'land-int-muted' : ''}`}>
               <div className="land-int-name">{i.name}</div>
               <div className="land-int-desc">{i.desc}</div>
               <span className={`land-int-status ${i.status}`}>
@@ -165,9 +177,9 @@ export default function LandingPage() {
       <section className="land-cta">
         <div className="land-cta-grid-bg" />
         <div className="land-cta-inner">
-          <div className="land-label" style={{color:'#E53E3E'}}>Start now — free forever</div>
-          <h2 className="land-cta-title">Your next 3am call<br />ends in <span>30 seconds</span>.</h2>
-          <p className="land-cta-sub">Drop a log. Ask a question. Get root cause with citations — not a wall of text and a list of maybes.</p>
+          <div className="land-label reveal" style={{color:'#E53E3E'}}>Start now — free forever</div>
+          <h2 className="land-cta-title reveal reveal-d1">Your next 3am call<br />ends in <span>30 seconds</span>.</h2>
+          <p className="land-cta-sub reveal reveal-d2">Drop a log. Ask a question. Get root cause with citations — not a wall of text and a list of maybes.</p>
           <div className="hero-cta-btns">
             <button className="landing-btn-red landing-btn-lg" onClick={goToApp}>
               Start analysing free →
