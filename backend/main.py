@@ -745,22 +745,61 @@ def _citation_token(citation: str) -> str:
     return parts[1] if len(parts) > 1 else inner
 
 
-def validate_citations(response_text: str, source_texts: List[str]) -> List[Dict]:
+_CSV_ROW_RE = re.compile(r'^row(\d+)(?:-(\d+))?$', re.IGNORECASE)
+
+def _validate_csv_citation(token: str, csv_row_counts: List[int]) -> bool:
     """
-    Verify every citation in response_text against the joined source corpus.
-    Returns a list of issue dicts for citations whose token cannot be found verbatim.
-    Does NOT flag missing citations — only verifies cited values that are present.
+    For [csv:rowN] or [csv:rowN-M] citations, validate against actual row counts.
+    Returns True (valid) if any source CSV has enough rows.
+    """
+    m = _CSV_ROW_RE.match(token)
+    if not m:
+        return None  # not a row-style citation — fall through to verbatim check
+    start = int(m.group(1))
+    end = int(m.group(2)) if m.group(2) else start
+    # valid if any uploaded CSV has at least that many data rows
+    return any(count >= end for count in csv_row_counts)
+
+
+def validate_citations(response_text: str, source_texts: List[str], source_types: List[str] = None) -> List[Dict]:
+    """
+    Verify every citation in response_text against the source corpus.
+    CSV row citations ([csv:rowN]) are validated by row count, not verbatim text.
     """
     all_source = "\n".join(source_texts)
-    issues = []
 
+    # Count data rows for each CSV source (subtract 1 for header)
+    csv_row_counts = []
+    if source_types:
+        for text, ftype in zip(source_texts, source_types):
+            if ftype == "CSV":
+                rows = [l for l in text.splitlines() if l.strip()]
+                csv_row_counts.append(max(0, len(rows) - 1))
+
+    issues = []
     for match in _CITATION_RE.finditer(response_text):
         citation = match.group()
+        inner = citation[1:-1]
+        prefix = inner.split(":", 1)[0]
         token = _citation_token(citation)
 
         # Skip very short or purely numeric tokens — too many false positives
         if len(token) < 4 or token.isdigit():
             continue
+
+        # CSV row citations: validate by row index, not verbatim
+        if prefix == "csv" and csv_row_counts:
+            result = _validate_csv_citation(token, csv_row_counts)
+            if result is True:
+                continue   # valid row reference
+            if result is False:
+                issues.append({
+                    "type":     "unverifiable_citation",
+                    "citation": citation,
+                    "detail":   f"Row '{token}' exceeds the number of rows in the CSV.",
+                })
+                continue
+            # result is None → not a row-style token, fall through to verbatim
 
         if token not in all_source:
             issues.append({
@@ -992,12 +1031,14 @@ async def query_document(request: QueryRequest):
         # ── Citation validation ────────────────────────────────────────────────
         try:
             source_texts = [state.get("raw_text", "")]
+            source_types = [state.get("file_type", "")]
             for sid in cross_ids:
                 cs = sessions.get(sid)
                 if cs:
                     source_texts.append(cs.get("raw_text", ""))
+                    source_types.append(cs.get("file_type", ""))
 
-            val_issues = validate_citations(display_output, source_texts)
+            val_issues = validate_citations(display_output, source_texts, source_types)
 
             if val_issues:
                 query_hash = str(abs(hash(request.query)))[:12]
