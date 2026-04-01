@@ -777,6 +777,12 @@ export default function App() {
      midChat=true: add files to context without resetting the current session/chat. */
   const handleUpload = async (files, midChat = false) => {
     if (!files?.length) return
+    const MAX_MB = 20
+    const oversized = Array.from(files).filter(f => f.size > MAX_MB * 1024 * 1024)
+    if (oversized.length) {
+      setError(`File too large: ${oversized.map(f => f.name).join(', ')}. Maximum is ${MAX_MB} MB.`)
+      return
+    }
     setIsUploading(true); setError(null)
 
     if (!midChat) {

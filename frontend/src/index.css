@@ -1007,10 +1007,33 @@ option { background: var(--grey-50); color: var(--black); }
 
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
-  .sidebar { width: 180px; min-width: 180px; }
-  .messages-area { padding: 24px 20px; }
-  .input-area { padding: 12px 20px 16px; }
-  .hero-title { font-size: 48px; }
+  /* Sidebar collapses to a top bar on mobile */
+  .app { flex-direction: column; }
+
+  .sidebar {
+    width: 100% !important; min-width: unset;
+    height: auto; flex-direction: row; flex-wrap: nowrap;
+    border-right: none; border-bottom: var(--border);
+    overflow-x: auto; overflow-y: hidden;
+    flex-shrink: 0;
+  }
+  .sidebar-header { border-bottom: none; border-right: var(--border); padding: 10px 14px; flex-shrink: 0; }
+  .sidebar-section { border-bottom: none; border-right: var(--rule); padding: 8px 12px; flex-shrink: 0; }
+  .sidebar-footer { display: none; }
+  .session-history { display: none; }
+  .skills-section { display: none; }
+
+  .main { height: 0; flex: 1; }
+  .messages-area { padding: 16px 16px; }
+  .input-area { padding: 10px 16px 14px; }
+  .file-context-bar { padding: 8px 16px; }
+  .chat-header { padding: 0 16px; }
+  .stats-bar { display: none; }
+  .auto-triage-bar { font-size: 8px; }
+  .suggestions-grid { grid-template-columns: 1fr; }
+  .followup-row { flex-direction: column; }
+  .followup-chip { border-right: none !important; border-bottom: var(--rule); }
+  .hero-center { margin: -16px -16px -14px; }
 }
 
 /* ─── Utility ─── */

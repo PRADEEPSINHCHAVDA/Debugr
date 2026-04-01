@@ -1,7 +1,11 @@
-/* ── Page fade-in ── */
+/* ── Page fade-in / fade-out ── */
 @keyframes pageFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+@keyframes pageFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 /* ── Landing page root ── */
@@ -11,6 +15,10 @@
   color: #fff;
   overflow-x: clip;
   animation: pageFadeIn 0.4s ease both;
+}
+.landing-root.leaving {
+  animation: pageFadeOut 0.35s ease forwards;
+  pointer-events: none;
 }
 
 /* ── Nav ── */

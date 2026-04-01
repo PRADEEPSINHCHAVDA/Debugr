@@ -236,11 +236,20 @@ async def startup_event():
     init_db()
     init_cron_db()
     sessions.update(load_sessions_db())
-    # Re-schedule all enabled cron jobs
     for job in load_cron_jobs_db():
         if job["enabled"]:
             schedule_job(job)
     scheduler.start()
+    # Warm up embedder so first user request isn't slow
+    try:
+        embedder(["warmup"])
+        print("[startup] embedder warmed up")
+    except Exception as e:
+        print(f"[startup] embedder warmup failed: {e}")
+    # Warn loudly if critical API keys are missing
+    missing = [k for k in ["GROQ_API_KEY"] if not os.getenv(k)]
+    if missing:
+        print(f"[startup] WARNING: missing env vars: {', '.join(missing)} — LLM queries will fail")
 
 
 @app.on_event("shutdown")
@@ -854,6 +863,9 @@ async def upload_file(file: UploadFile = File(...)):
     filename = file.filename
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     content = await file.read()
+    MAX_BYTES = 20 * 1024 * 1024  # 20 MB
+    if len(content) > MAX_BYTES:
+        raise HTTPException(400, f"File too large ({len(content)//1024//1024} MB). Maximum allowed is 20 MB.")
     df: Optional[pd.DataFrame] = None
 
     if ext == "pdf":

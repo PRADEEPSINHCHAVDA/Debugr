@@ -7,6 +7,12 @@ export default function LandingPage() {
   const navigate = useNavigate()
   const heroWrapperRef = useRef(null)
   const [heroProgress, setHeroProgress] = useState(0)
+  const [leaving, setLeaving] = useState(false)
+
+  const goToApp = () => {
+    setLeaving(true)
+    setTimeout(() => navigate('/app'), 400)
+  }
 
   // Track scroll progress ONLY within the hero zone (the 300vh sticky block)
   useEffect(() => {
@@ -26,7 +32,7 @@ export default function LandingPage() {
   }, [])
 
   return (
-    <div className="landing-root">
+    <div className={`landing-root${leaving ? ' leaving' : ''}`}>
       {/* Fixed nav */}
       <nav className="landing-nav">
         <div className="landing-nav-logo">
@@ -37,7 +43,7 @@ export default function LandingPage() {
           <a href="#features">Features</a>
           <a href="#integrations">Integrations</a>
         </div>
-        <button className="landing-btn-primary" onClick={() => navigate('/app')}>
+        <button className="landing-btn-primary" onClick={goToApp}>
           Try Free →
         </button>
       </nav>
@@ -59,7 +65,7 @@ export default function LandingPage() {
               Get cited evidence — not a wall of text.
             </p>
             <div className="hero-cta-btns">
-              <button className="landing-btn-primary landing-btn-lg" onClick={() => navigate('/app')}>
+              <button className="landing-btn-primary landing-btn-lg" onClick={goToApp}>
                 Start analysing free →
               </button>
               <a className="landing-btn-ghost landing-btn-lg" href="#how">
@@ -163,7 +169,7 @@ export default function LandingPage() {
           <h2 className="land-cta-title">Your next 3am call<br />ends in <span>30 seconds</span>.</h2>
           <p className="land-cta-sub">Drop a log. Ask a question. Get root cause with citations — not a wall of text and a list of maybes.</p>
           <div className="hero-cta-btns">
-            <button className="landing-btn-red landing-btn-lg" onClick={() => navigate('/app')}>
+            <button className="landing-btn-red landing-btn-lg" onClick={goToApp}>
               Start analysing free →
             </button>
             <a className="landing-btn-ghost-dark landing-btn-lg" href="#how">
