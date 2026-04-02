@@ -998,8 +998,7 @@ class QueryRequest(BaseModel):
 
 
 @app.post("/query")
-@limiter.limit("30/minute;300/hour")
-async def query_document(http_request: Request, request: QueryRequest):
+async def query_document(request: QueryRequest):
     state = sessions.get(request.session_id)
     if state is None:
         raise HTTPException(404, "Session not found. Upload a file first.")
