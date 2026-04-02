@@ -1044,7 +1044,7 @@ export default function App() {
       </aside>
 
       {/* ─── Main ─── */}
-      <main className="main">
+      <main className={`main${!session && messages.length === 0 ? ' main-empty' : ''}`}>
         {/* Header */}
         <div className="chat-header">
           <div className="header-left">
@@ -1084,6 +1084,10 @@ export default function App() {
         <div className="messages-area">
           {!session && messages.length === 0 && (
             <div className="hero-center">
+              <div className="empty-heading">
+                <h1 className="empty-logo">Debug<span>r</span></h1>
+                <p className="empty-tagline">Drop a file. Ask a question. Get root cause.</p>
+              </div>
               <HeroState onUpload={handleUpload} isUploading={isUploading} uploadProgress={uploadProgress} />
             </div>
           )}
