@@ -12,17 +12,32 @@ import chromadb
 import pandas as pd
 import pdfplumber
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from groq import Groq
 from openai import OpenAI
 from pydantic import BaseModel
 from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
+load_dotenv()  # loads .env in local dev; env vars take precedence on Railway
+
+# ── Rate limiter ──────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/hour"])
 
 app = FastAPI(title="Debugr AI — RAG DevOps Assistant")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# ── Admin secret (set ADMIN_SECRET env var, never commit it) ──────────────────
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
 
 # ── Persistence setup ─────────────────────────────────────────────────────────
 DATA_DIR = Path("./data")
@@ -67,8 +82,31 @@ def init_db():
             created_at   TEXT NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS usage_log (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts               TEXT NOT NULL,
+            ip               TEXT,
+            route            TEXT NOT NULL,
+            tokens_estimated INTEGER DEFAULT 0,
+            is_error         INTEGER DEFAULT 0
+        )
+    """)
     conn.commit()
     conn.close()
+
+
+def log_usage(ip: str, route: str, tokens: int = 0, is_error: bool = False):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "INSERT INTO usage_log (ts, ip, route, tokens_estimated, is_error) VALUES (?,?,?,?,?)",
+            (datetime.now().isoformat(), ip, route, tokens, int(is_error))
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # never let logging break a request
 
 
 def save_session_db(session_id: str, filename: str, file_type: str, chunks: int, auto_insights: dict):
@@ -820,6 +858,34 @@ def validate_citations(response_text: str, source_texts: List[str], source_types
     return issues
 
 
+# ── Security helpers ─────────────────────────────────────────────────────────
+
+# Magic-byte MIME validation — checks actual file content, not just extension
+_MAGIC: Dict[str, bytes] = {
+    "pdf": b"%PDF",
+}
+
+def validate_file_content(content: bytes, ext: str) -> bool:
+    """Returns True if the file's actual bytes match the claimed extension."""
+    if ext == "pdf":
+        return content[:4] == b"%PDF"
+    if ext in {"csv", "log", "txt", "env"}:
+        # Must be valid UTF-8 text
+        try:
+            content[:4096].decode("utf-8")
+            return True
+        except UnicodeDecodeError:
+            return False
+    return False
+
+
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+def sanitize_text(text: str) -> str:
+    """Strip null bytes and non-printable control characters from file text."""
+    return _CONTROL_RE.sub("", text)
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():
@@ -857,15 +923,26 @@ async def list_sessions():
 
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+@limiter.limit("20/minute;100/hour")
+async def upload_file(request: Request, file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(400, "Filename missing.")
     filename = file.filename
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    if ext not in {"pdf", "csv", "log", "txt", "env"}:
+        raise HTTPException(400, "Unsupported file type. Use PDF, CSV, LOG, TXT, or ENV.")
+
     content = await file.read()
     MAX_BYTES = 20 * 1024 * 1024  # 20 MB
     if len(content) > MAX_BYTES:
+        log_usage(request.client.host, "/upload", is_error=True)
         raise HTTPException(400, f"File too large ({len(content)//1024//1024} MB). Maximum allowed is 20 MB.")
+
+    # MIME validation — reject files that don't match their claimed extension
+    if not validate_file_content(content, ext):
+        log_usage(request.client.host, "/upload", is_error=True)
+        raise HTTPException(400, "File content does not match its extension. Upload rejected.")
+
     df: Optional[pd.DataFrame] = None
 
     if ext == "pdf":
@@ -877,6 +954,8 @@ async def upload_file(file: UploadFile = File(...)):
         text, file_type = parse_text(content), "LOG"
     else:
         raise HTTPException(400, "Unsupported file type. Use PDF, CSV, LOG, TXT, or ENV.")
+
+    text = sanitize_text(text)  # strip null bytes + control chars before LLM
 
     if not text.strip():
         raise HTTPException(400, "No text content could be extracted.")
@@ -919,7 +998,8 @@ class QueryRequest(BaseModel):
 
 
 @app.post("/query")
-async def query_document(request: QueryRequest):
+@limiter.limit("30/minute;300/hour")
+async def query_document(http_request: Request, request: QueryRequest):
     state = sessions.get(request.session_id)
     if state is None:
         raise HTTPException(404, "Session not found. Upload a file first.")
@@ -1216,3 +1296,32 @@ async def toggle_cron_job(job_id: str):
 @app.get("/health")
 async def health():
     return {"status": "ok", "sessions": len(sessions)}
+
+
+@app.get("/admin/stats")
+async def admin_stats(secret: str = ""):
+    if not ADMIN_SECRET or secret != ADMIN_SECRET:
+        raise HTTPException(403, "Forbidden.")
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        today = datetime.now().strftime("%Y-%m-%d")
+        rows = conn.execute("""
+            SELECT
+                COUNT(*) as total_requests,
+                SUM(CASE WHEN ts LIKE ? THEN 1 ELSE 0 END) as today_requests,
+                SUM(tokens_estimated) as total_tokens,
+                SUM(CASE WHEN is_error = 1 THEN 1 ELSE 0 END) as total_errors,
+                COUNT(DISTINCT ip) as unique_ips
+            FROM usage_log
+        """, (f"{today}%",)).fetchone()
+        conn.close()
+        return {
+            "total_requests":  rows[0],
+            "today_requests":  rows[1],
+            "total_tokens_est": rows[2],
+            "total_errors":    rows[3],
+            "unique_ips":      rows[4],
+            "active_sessions": len(sessions),
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
