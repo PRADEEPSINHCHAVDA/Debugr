@@ -960,7 +960,7 @@ export default function App() {
               </svg>
             </div></div>
             <div className="logo-text-group">
-              <span className="logo-wordmark">Debugr</span>
+              <span className="logo-wordmark">Debug<span>r</span></span>
               <span className="logo-tagline">RAG · LLM · DevOps</span>
             </div>
           </div>
