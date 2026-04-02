@@ -792,7 +792,7 @@ def _citation_token(citation: str) -> str:
     return parts[1] if len(parts) > 1 else inner
 
 
-_CSV_ROW_RE = re.compile(r'^row(\d+)(?:-(\d+))?$', re.IGNORECASE)
+_CSV_ROW_RE = re.compile(r'^rows?\s*(\d+)(?:\s*[-–]\s*(\d+))?$', re.IGNORECASE)
 
 def _validate_csv_citation(token: str, csv_row_counts: List[int]) -> bool:
     """
