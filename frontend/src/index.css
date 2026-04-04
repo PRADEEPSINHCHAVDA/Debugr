@@ -428,14 +428,18 @@ body.app-mode #root { height: 100%; height: 100dvh; }
 .hero-center {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0;
   /* Swiss grid background */
   background-image:
     linear-gradient(rgba(229,62,62,0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(229,62,62,0.04) 1px, transparent 1px);
   background-size: 32px 32px;
   margin: -40px -60px -24px;
+  padding: 40px 60px 24px;
+  overflow-y: auto;
 }
 .hero-drop {
   display: flex;
@@ -1074,6 +1078,65 @@ option { background: var(--grey-50); color: var(--black); }
   .followup-chip { border-right: none !important; border-bottom: var(--rule); }
   .hero-center { margin: -16px -16px -14px; }
 }
+
+/* ─── Share button ─── */
+.share-btn {
+  display: flex !important;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px !important;
+  min-width: 72px;
+  font-size: 11px;
+  letter-spacing: .04em;
+  font-weight: 600;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.share-btn .btn-icon-label { font-family: var(--font-mono); text-transform: uppercase; }
+.share-btn.copied { color: var(--signal-success) !important; border-color: var(--signal-success) !important; }
+
+/* ─── Onboarding panel ─── */
+.onboarding-panel {
+  margin-top: 24px;
+  padding: 16px 20px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  width: 100%;
+  max-width: 480px;
+}
+.onboarding-heading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.onboarding-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: var(--rule);
+  border-radius: 4px;
+  background: var(--surface-2);
+  cursor: default;
+  transition: border-color .15s, background .15s;
+}
+.onboarding-chip:hover { border-color: var(--red); background: var(--red-dim); }
+.onboarding-chip-icon { font-size: 13px; line-height: 1; flex-shrink: 0; }
+.onboarding-chip-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+.onboarding-chip:hover .onboarding-chip-label { color: var(--text-primary); }
 
 /* ─── Utility ─── */
 .hidden { display: none !important; }

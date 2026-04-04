@@ -6,6 +6,8 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 /* ─── SVG Icon components ─── */
 const Icon = {
   Wrench: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
+  Share: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
+  Check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
   Shield: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   BarChart: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   Download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
@@ -387,6 +389,15 @@ function FileIconBadge({ type }) {
 }
 
 
+const ONBOARDING_EXAMPLES = [
+  { label: 'Find root cause of failures', icon: '🔍' },
+  { label: 'Show all critical + fatal errors', icon: '🚨' },
+  { label: 'Detect anomalies in this data', icon: '📊' },
+  { label: 'Generate an incident report', icon: '📋' },
+  { label: 'Identify memory leaks', icon: '💾' },
+  { label: 'What security issues exist?', icon: '🔒' },
+]
+
 /* ─── HeroState ─── */
 function HeroState({ onUpload, isUploading, uploadProgress, inputRef }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -454,6 +465,23 @@ function HeroState({ onUpload, isUploading, uploadProgress, inputRef }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ─── OnboardingPanel ─── */
+function OnboardingPanel() {
+  return (
+    <div className="onboarding-panel">
+      <p className="onboarding-heading">What you can ask after uploading</p>
+      <div className="onboarding-grid">
+        {ONBOARDING_EXAMPLES.map((ex, i) => (
+          <div key={i} className="onboarding-chip">
+            <span className="onboarding-chip-icon">{ex.icon}</span>
+            <span className="onboarding-chip-label">{ex.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -734,6 +762,21 @@ export default function App() {
     const a    = document.createElement('a')
     a.href = url; a.download = `debugr-${session?.filename || 'analysis'}.md`; a.click()
     URL.revokeObjectURL(url)
+  }
+
+  /* Copy full report to clipboard */
+  const [reportCopied, setReportCopied] = useState(false)
+  const copyReport = () => {
+    if (!messages.length) return
+    const lines = [`# Debugr Analysis — ${session?.filename || 'Session'}`, `*${new Date().toLocaleString()}*`, '', '---', '']
+    for (const m of messages) {
+      lines.push(`**${m.role === 'user' ? 'You' : 'Debugr AI'}:**`)
+      lines.push(m.content, '', '---', '')
+    }
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setReportCopied(true)
+      setTimeout(() => setReportCopied(false), 2000)
+    })
   }
 
   /* Upload */
@@ -1060,6 +1103,15 @@ export default function App() {
           </div>
           <div className="header-right">
             <div className="header-action-btns">
+              <button
+                className={`btn-icon share-btn${reportCopied ? ' copied' : ''}`}
+                title="Copy report to clipboard"
+                onClick={copyReport}
+                disabled={!messages.length}
+              >
+                {reportCopied ? <Icon.Check /> : <Icon.Share />}
+                <span className="btn-icon-label">{reportCopied ? 'Copied!' : 'Share'}</span>
+              </button>
               <button className="btn-icon" title="Export to Markdown (⌘E)" onClick={exportMarkdown} disabled={!messages.length}><Icon.Download /></button>
             </div>
             <div className="model-tag">
@@ -1085,6 +1137,7 @@ export default function App() {
           {!session && messages.length === 0 && (
             <div className="hero-center">
               <HeroState onUpload={handleUpload} isUploading={isUploading} uploadProgress={uploadProgress} />
+              <OnboardingPanel />
             </div>
           )}
 
